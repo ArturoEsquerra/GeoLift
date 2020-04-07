@@ -1,0 +1,43 @@
+Package: GeoLift
+Title: GeoLift Method to Calculate Lift at a Geo Level
+Version: 1.0
+Authors@R: c(
+    person(given = "Arturo",
+           family = "Esquerra",
+           role = c("aut", "cre"),
+           email = "aesquerra@fb.com"),
+    person(given = "Kanishka",
+           family = "Panchal",
+           role = c("aut"),
+           email = "kpanchal@fb.com"))
+Description: GeoLift is an end-to-end solution to measure lift at 
+    a geographical level. It is a flexible and robust implementation
+    of Augmented Generalized Synthetic Controls. The package
+    provides tools to perform power calculations to plan future 
+    studies, market selection,  as well as inference to calculate 
+    the lift of a study. GeoLift allows for flexible geo-grain 
+    definitions but is recommended for geographic aggregation levels 
+    of cities or higher for daily or weekly data. 
+    To run a GeoLift experiment at least 25 pre-treatment
+    periods and over 20 geo-units are recommended.
+License: 
+    GPL (>= 2)
+Depends:
+    R (>= 3.6.2)
+Imports:
+    augsynth (>= 0.2.0),
+    gsynth (>= 1.0.9),
+    panelView (>= 1.1.2),
+    plyr (>= 1.8.5),
+    dplyr (>= 0.8.4),
+    doParallel (>= 1.0.15),
+    foreach (>= 1.4.8),
+    ggrepel (>= 0.8.1),
+    MarketMatching (>= 1.1.2),
+    stringr (>= 1.4.0),
+    directlabels (>= 2020.1.31)
+Suggests:
+    fbr
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.1.0
