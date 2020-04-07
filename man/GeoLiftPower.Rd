@@ -24,7 +24,7 @@ of the time period (starting at 1), and covariates.}
 \item{locations}{A semi-colon separated list of test geo locations.}
 
 \item{effect_size}{A vector of effect sizes to test by default a
-sequence between 0% - 15%: seq(0,10000,50)/1000 ).}
+sequence between 0 - 15 percent: seq(0,10000,50)/1000.}
 
 \item{treatment_periods}{Expected length of the test. A vector of
 possible lengths can be entered for multiple options.}
@@ -39,18 +39,18 @@ minimum budget. The default value is 1.}
 \item{X}{List of names of covariates. No covariates are used
 by default.}
 
-\item{Y}{Name of the outcome variable. "Y" by default}
+\item{Y}{Name of the outcome variable. "Y" by default.}
 }
 \value{
 GeoLiftPower object that contains:
-         \itemize{
+     \itemize{
          \item{"location"}{Test units of the simulation}
          \item{"pvalue"}{P Value for each simulation}
          \item{"duration"}{Duration of the simulation}
          \item{"effect_size"}{Effect Size used for the simulation}
          \item{"treatment_start"}{Treatment start time for the simulation}
          \item{"investment"}{Estimated Investment}
-        }
+     }
 }
 \description{
 This function runs power calculations for input historical geo data

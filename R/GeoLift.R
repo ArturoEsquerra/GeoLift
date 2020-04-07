@@ -484,7 +484,7 @@ pvalueCalc <- function(data,
 #' of the time period (starting at 1), and covariates.
 #' @param locations A semi-colon separated list of test geo locations.
 #' @param effect_size A vector of effect sizes to test by default a
-#' sequence between 0% - 15%: seq(0,10000,50)/1000 ).
+#' sequence between 0 - 15 percent: seq(0,10000,50)/1000.
 #' @param treatment_periods Expected length of the test. A vector of
 #' possible lengths can be entered for multiple options.
 #' @param horizon Lookback window for the power analysis. For daily
@@ -494,17 +494,18 @@ pvalueCalc <- function(data,
 #' minimum budget. The default value is 1.
 #' @param X List of names of covariates. No covariates are used
 #' by default.
-#' @param Y Name of the outcome variable. "Y" by default
+#' @param Y Name of the outcome variable. "Y" by default.
 #'
-#' @return GeoLiftPower object that contains:
-#'          \itemize{
+#' @return
+#' GeoLiftPower object that contains:
+#'      \itemize{
 #'          \item{"location"}{Test units of the simulation}
 #'          \item{"pvalue"}{P Value for each simulation}
 #'          \item{"duration"}{Duration of the simulation}
 #'          \item{"effect_size"}{Effect Size used for the simulation}
 #'          \item{"treatment_start"}{Treatment start time for the simulation}
 #'          \item{"investment"}{Estimated Investment}
-#'         }
+#'      }
 #'
 #' @export
 GeoLiftPower <- function(data,
@@ -934,8 +935,7 @@ GeoLiftPower.search <- function(data,
 #' GeoLift object that contains:
 #'          \itemize{
 #'          \item{"results"}{Generalized Augmented Sunthetic Controls results.}
-#'          \item{"inference"}{Data frame with inference statistics
-#'          (ATT, Lift (%), p-value, and Confidence Interval.)}
+#'          \item{"inference"}{Data frame with inference statistics (ATT, Lift, p-value, and Confidence Interval.)}
 #'          \item{"data"}{Input data.}
 #'          \item{"y_obs"}{Observed outcome metric.}
 #'          \item{"y_hat"}{Counterfactual outcome metric.}

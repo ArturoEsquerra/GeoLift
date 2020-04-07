@@ -30,7 +30,21 @@ of the time period (starting at 1), and covariates.}
 \item{treatment_end_time}{Time index of the end of the treatment.}
 }
 \value{
-
+GeoLift object that contains:
+         \itemize{
+         \item{"results"}{Generalized Augmented Sunthetic Controls results.}
+         \item{"inference"}{Data frame with inference statistics (ATT, Lift, p-value, and Confidence Interval.)}
+         \item{"data"}{Input data.}
+         \item{"y_obs"}{Observed outcome metric.}
+         \item{"y_hat"}{Counterfactual outcome metric.}
+         \item{"ATT"}{ATT estimate.}
+         \item{"ATT_se"}{Standrd Error of the ATT estimate.}
+         \item{"TreatmentStart"}{Time id of treatment start.}
+         \item{"TreatmentEnd"}{Time id of treatment end.}
+         \item{"test_id"}{List of names of the test locations.}
+         \item{"incremental"}{Incremental outcome units (Obersved - Counterfactual).}
+         \item{"Y_id"}{Name of the outcome variable.}
+         }
 }
 \description{
 \code{GeoLift} performs inference for a geo-test.
