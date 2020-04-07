@@ -946,6 +946,7 @@ GeoLiftPower.search <- function(data,
 #'          \item{"test_id"}{List of names of the test locations.}
 #'          \item{"incremental"}{Incremental outcome units (Obersved - Counterfactual).}
 #'          \item{"Y_id"}{Name of the outcome variable.}
+#'          }
 #'
 #' @export
 GeoLift <- function(Y_id = "Y",
@@ -1453,7 +1454,7 @@ Lift.loc.plot <- function(GeoLift,
 #'
 #' @return
 #' GeoLift summary object that contains:
-#'          \itemize{
+#'      \itemize{
 #'          \item{"ATT"}{ATT estimate.}
 #'          \item{"PercLift"}{Lift estimate}
 #'          \item{"pvalue"}{Experiment p-value.}
@@ -1469,6 +1470,7 @@ Lift.loc.plot <- function(GeoLift,
 #'          \item{"type"}{Single or Multiple test locations.}
 #'          \item{"Y_id"}{Name of the outcome variable.}
 #'          \item{"incremental"}{Incremental outcome units.}
+#'       }
 #'
 #' @export
 summary.GeoLift <- function(GeoLift){
