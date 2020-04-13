@@ -36,6 +36,7 @@
 #' @import ggplot2
 #' @import tibble
 #' @import tidyr
+#' @import parallel
 #'
 #' @export
 GeoDataRead <- function(data,
@@ -565,14 +566,14 @@ GeoLiftPower <- function(data,
                    }
 
       for (i in 1:ncol(a)) {
-        results <- results %>% add_row(location=a[[1,i]],
-                                       pvalue = as.numeric(a[[2,i]]),
-                                       duration = as.numeric(a[[3,i]]),
-                                       lift = as.numeric(a[[4,i]]),
-                                       treatment_start = as.numeric(a[[5,i]]),
-                                       investment = as.numeric(a[[6,i]]),
-                                       cpic = cpic) }
-
+        results <- rbind(results, data.frame(location = a[[1,i]],
+                                             pvalue = as.numeric(a[[2,i]]),
+                                             duration = as.numeric(a[[3,i]]),
+                                             lift = as.numeric(a[[4,i]]),
+                                             treatment_start = as.numeric(a[[5,i]]),
+                                             investment = as.numeric(a[[6,i]]),
+                                              cpic = cpic ) )
+      }
 
     }
   }
@@ -730,10 +731,11 @@ NumberLocations <- function(data,
                    }
 
       for (i in 1:ncol(a)) {
-        results <- results %>% add_row(location = a[[1,i]],
-                                       pvalue = as.numeric(a[[2,i]]),
-                                       n = n,
-                                       treatment_start = as.numeric(a[[5,i]])) }
+        results <- rbind(results, data.frame(location = a[[1,i]],
+                                             pvalue = as.numeric(a[[2,i]]),
+                                             n = n,
+                                             treatment_start = as.numeric(a[[5,i]]) ) )
+        }
     }
   }
 
@@ -744,7 +746,7 @@ NumberLocations <- function(data,
     results$pow[results$pvalue > 1 - conf.level] <- 1
 
     resultsM <- results %>% dplyr::group_by(n) %>%  dplyr::summarize(mean_pow = mean(pow))
-    resultsM <- add_row(resultsM, n = 0, mean_pow = 0, .before = 1)
+    resultsM <- tibble::add_row(resultsM, n = 0, mean_pow = 0, .before = 1)
 
     print(" Average Power By Number of Locations")
     print(resultsM)
@@ -896,10 +898,10 @@ GeoLiftPower.search <- function(data,
                      }
 
         for (i in 1:ncol(a)) {
-          results <- results %>% add_row(location=a[[1,i]],
-                                         pvalue = as.numeric(a[[2,i]]),
-                                         duration = as.numeric(a[[3,i]]),
-                                         treatment_start = as.numeric(a[[5,i]]))
+          results <- rbind(results, data.frame(location=a[[1,i]],
+                                               pvalue = as.numeric(a[[2,i]]),
+                                               duration = as.numeric(a[[3,i]]),
+                                               treatment_start = as.numeric(a[[5,i]]) ) )
         }
 
 
@@ -1028,7 +1030,7 @@ GeoLift <- function(Y_id = "Y",
     incremental <- sum(augsyn$data$y[loc_id,])-
       sum(predict(augsyn)[treatment_start_time:treatment_end_time])
 
-    inference_df <- inference_df %>% add_row(ATT = mean,
+    inference_df <- inference_df %>% tibble::add_row(ATT = mean,
                                              Perc.Lift = 100 * round(lift, 3),
                                              pvalue = pvalue(augsyn),
                                              Lower.Conf.Int = mean-qnorm(0.95,0,1)*se,
@@ -1055,7 +1057,7 @@ GeoLift <- function(Y_id = "Y",
     incremental <- sum(augsyn$data$y[loc_id,]) -
       sum(predict(augsyn)[treatment_start_time:treatment_end_time,-1])
 
-    inference_df <- inference_df %>% add_row(ATT = mean,
+    inference_df <- inference_df %>% tibble::add_row(ATT = mean,
                                              Perc.Lift = 100 * round(lift, 3),
                                              pvalue = pvalue(augsyn),
                                              Lower.Conf.Int = mean-qnorm(0.95,0,1)*se,

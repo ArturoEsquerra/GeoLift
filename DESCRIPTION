@@ -38,7 +38,8 @@ Imports:
     directlabels,
     ggplot2,
     tibble,
-    tidyr
+    tidyr,
+    parallel
 Suggests:
     fbr
 Encoding: UTF-8
