@@ -181,7 +181,7 @@ GeoDataRead <- function(data, date_id = "date",
     data <- data %>% left_join(data_aux, by = c("location", "time"))
   }
 
-  return(data)
+  return(as.data.frame(data))
 
 }
 
@@ -410,12 +410,12 @@ pvalue <- function(augsyn){
 #' @return
 #' List that contains:
 #'          \itemize{
-#'          \item{"location"}{Test locations.}
-#'          \item{"pvalue"}{P Value.}
-#'          \item{"tp"}{Time period index.}
-#'          \item{"es"}{Effect Size used for the simulation.}
-#'          \item{"treatment_start_time"}{Treatment start time for the simulation}
-#'          \item{"investment"}{Estimated Investment}
+#'          \item{"location":}{ Test locations.}
+#'          \item{"pvalue":}{ P Value.}
+#'          \item{"tp":}{ Time period index.}
+#'          \item{"es":}{ Effect Size used for the simulation.}
+#'          \item{"treatment_start_time":}{ Treatment start time for the simulation}
+#'          \item{"investment":}{ Estimated Investment}
 #'         }
 #'
 #' @export
@@ -491,7 +491,8 @@ pvalueCalc <- function(data,
 #' data 30 days are recommended and 8-12 weeks for monthly data.
 #' The default window is 30.
 #' @param cpic Cost Per Incremental Conversion for estimated test
-#' minimum budget. The default value is 1.
+#' minimum budget. The default value is 0, in which case no investment
+#' estimation will be provided.
 #' @param X List of names of covariates. No covariates are used
 #' by default.
 #' @param Y Name of the outcome variable. "Y" by default.
@@ -499,12 +500,12 @@ pvalueCalc <- function(data,
 #' @return
 #' GeoLiftPower object that contains:
 #'      \itemize{
-#'          \item{"location"}{Test units of the simulation}
-#'          \item{"pvalue"}{P Value for each simulation}
-#'          \item{"duration"}{Duration of the simulation}
-#'          \item{"effect_size"}{Effect Size used for the simulation}
-#'          \item{"treatment_start"}{Treatment start time for the simulation}
-#'          \item{"investment"}{Estimated Investment}
+#'          \item{"location":}{ Test units of the simulation}
+#'          \item{"pvalue":}{ P Value for each simulation}
+#'          \item{"duration":}{ Duration of the simulation}
+#'          \item{"effect_size":}{ Effect Size used for the simulation}
+#'          \item{"treatment_start":}{ Treatment start time for the simulation}
+#'          \item{"investment":}{ Estimated Investment}
 #'      }
 #'
 #' @export
@@ -513,7 +514,7 @@ GeoLiftPower <- function(data,
                          effect_size = seq(0,10000,50)/1000,
                          treatment_periods,
                          horizon = 30,
-                         cpic = 1,
+                         cpic = 0,
                          X = c(),
                          Y_id = "Y"){
 
@@ -615,15 +616,25 @@ plot.GeoLiftPower <- function(x,
     print(t(resultsM))
   }
 
-  for(tp in 1:nrow(resultsM)){
-    par(mar = c(5, 5, 10, 5))
-    scatter.smooth(lift, resultsM[tp,],span=0.5, type="n", ylim = c(0,1),
-                   xlab="Effect Size", ylab="Power",  lpars = list(col = "red", lwd = 3),
-                   main=c("Treatment Periods: ",as.character(rownames(resultsM)[tp]), "\n investment"))
-    abline(h = power)
-    par(new=TRUE)
-    plot((spending %>% filter(duration == rownames(resultsM)[tp]))$inv, resultsM[tp,], type="n", xaxt = "n", yaxt = "n", ylab = "", xlab = "")
-    axis(side=3)
+  if (sum(spending$inv > 0)) {
+    for(tp in 1:nrow(resultsM)){
+      par(mar = c(5, 5, 10, 5))
+      scatter.smooth(lift, resultsM[tp,],span=0.5, type="n", ylim = c(0,1),
+                     xlab="Effect Size", ylab="Power",  lpars = list(col = "red", lwd = 3),
+                     main=c("Treatment Periods: ",as.character(rownames(resultsM)[tp]), "\n investment"))
+      abline(h = power)
+      par(new=TRUE)
+      plot((spending %>% filter(duration == rownames(resultsM)[tp]))$inv, resultsM[tp,], type="n", xaxt = "n", yaxt = "n", ylab = "", xlab = "")
+      axis(side=3)
+    }
+
+  } else {
+    for(tp in 1:nrow(resultsM)){
+      scatter.smooth(lift, resultsM[tp,],span=0.5, type="n", ylim = c(0,1),
+                     xlab="Effect Size", ylab="Power",  lpars = list(col = "red", lwd = 3),
+                     main=c("Treatment Periods: ",as.character(rownames(resultsM)[tp])))
+      abline(h = power)
+    }
   }
 
 }
@@ -922,6 +933,8 @@ GeoLiftPower.search <- function(data,
 #' \code{GeoLift} performs inference for a geo-test.
 #'
 #' @param Y_id Name of the outcome variable (String).
+#' @param time_id Name of the time variable (String).
+#' @param location_id Name of the location variable (String).
 #' @param X List of names of covariates.
 #' @param data A data.frame containing the historical conversions by
 #' geographic unit, It requires a "locations" column with the geo name,
@@ -934,35 +947,40 @@ GeoLiftPower.search <- function(data,
 #' @return
 #' GeoLift object that contains:
 #'          \itemize{
-#'          \item{"results"}{Generalized Augmented Sunthetic Controls results.}
-#'          \item{"inference"}{Data frame with inference statistics (ATT, Lift, p-value, and Confidence Interval.)}
-#'          \item{"data"}{Input data.}
-#'          \item{"y_obs"}{Observed outcome metric.}
-#'          \item{"y_hat"}{Counterfactual outcome metric.}
-#'          \item{"ATT"}{ATT estimate.}
-#'          \item{"ATT_se"}{Standrd Error of the ATT estimate.}
-#'          \item{"TreatmentStart"}{Time id of treatment start.}
-#'          \item{"TreatmentEnd"}{Time id of treatment end.}
-#'          \item{"test_id"}{List of names of the test locations.}
-#'          \item{"incremental"}{Incremental outcome units (Obersved - Counterfactual).}
-#'          \item{"Y_id"}{Name of the outcome variable.}
+#'          \item{"results":}{ Generalized Augmented Sunthetic Controls results.}
+#'          \item{"inference":}{ Data frame with inference statistics (ATT, Lift, p-value, and Confidence Interval.)}
+#'          \item{"data":}{ Input data.}
+#'          \item{"y_obs":}{ Observed outcome metric.}
+#'          \item{"y_hat":}{ Counterfactual outcome metric.}
+#'          \item{"ATT":}{ ATT estimate.}
+#'          \item{"ATT_se":}{ Standrd Error of the ATT estimate.}
+#'          \item{"TreatmentStart":}{ Time id of treatment start.}
+#'          \item{"TreatmentEnd":}{ Time id of treatment end.}
+#'          \item{"test_id":}{ List of names of the test locations.}
+#'          \item{"incremental":}{ Incremental outcome units (Obersved - Counterfactual).}
+#'          \item{"Y_id":}{ Name of the outcome variable.}
 #'          }
 #'
 #' @export
 GeoLift <- function(Y_id = "Y",
+                    time_id = "time",
+                    location_id = "location",
                     X = c(),
                     data,
                     locations,
                     treatment_start_time,
                     treatment_end_time){
 
+  # Rename variables to standard names used by GeoLift
+  data <- data %>% rename(time = time_id,
+                          Y = Y_id,
+                          location = location_id)
+
   data$location <- tolower(data$location)
 
   data_aux <- fn_treatment(data, locations = locations,
                            treatment_start_time,
                            treatment_end_time)
-
-  data_aux <- data_aux %>% rename(Y = paste(Y_id))
 
 
   if (length(X) == 0){
@@ -1455,21 +1473,21 @@ Lift.loc.plot <- function(GeoLift,
 #' @return
 #' GeoLift summary object that contains:
 #'      \itemize{
-#'          \item{"ATT"}{ATT estimate.}
-#'          \item{"PercLift"}{Lift estimate}
-#'          \item{"pvalue"}{Experiment p-value.}
-#'          \item{"LowerCI"}{Lower Confidence Interval.}
-#'          \item{"UpperCI"}{Upper Confidence Interval.}
-#'          \item{"GlobalL2Imbalance"}{Global L2 Imbalance.}
-#'          \item{"GlobalL2ImbalanceScaled"}{Scaled Global L2 Imbalance.}
-#'          \item{"IndL2Imbalance"}{Individual L2 Imbalance.}
-#'          \item{"IndL2ImbalanceScaled"}{Scaled Individual L2 Imbalance.}
-#'          \item{"ATT"}{ATT.}
-#'          \item{"start"}{Treatment start.}
-#'          \item{"end"}{Treatment end.}
-#'          \item{"type"}{Single or Multiple test locations.}
-#'          \item{"Y_id"}{Name of the outcome variable.}
-#'          \item{"incremental"}{Incremental outcome units.}
+#'          \item{"ATT":}{ ATT estimate.}
+#'          \item{"PercLift":}{ Lift estimate}
+#'          \item{"pvalue":}{ Experiment p-value.}
+#'          \item{"LowerCI":}{ Lower Confidence Interval.}
+#'          \item{"UpperCI":}{ Upper Confidence Interval.}
+#'          \item{"GlobalL2Imbalance":}{ Global L2 Imbalance.}
+#'          \item{"GlobalL2ImbalanceScaled":}{ Scaled Global L2 Imbalance.}
+#'          \item{"IndL2Imbalance":}{ Individual L2 Imbalance.}
+#'          \item{"IndL2ImbalanceScaled":}{ Scaled Individual L2 Imbalance.}
+#'          \item{"ATT":}{ ATT.}
+#'          \item{"start":}{ Treatment start.}
+#'          \item{"end":}{ Treatment end.}
+#'          \item{"type":}{ Single or Multiple test locations.}
+#'          \item{"Y_id":}{ Name of the outcome variable.}
+#'          \item{"incremental":}{ Incremental outcome units.}
 #'       }
 #'
 #' @export

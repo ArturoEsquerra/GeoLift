@@ -29,12 +29,12 @@ of the time period (starting at 1), and covariates.}
 \value{
 List that contains:
          \itemize{
-         \item{"location"}{Test locations.}
-         \item{"pvalue"}{P Value.}
-         \item{"tp"}{Time period index.}
-         \item{"es"}{Effect Size used for the simulation.}
-         \item{"treatment_start_time"}{Treatment start time for the simulation}
-         \item{"investment"}{Estimated Investment}
+         \item{"location":}{ Test locations.}
+         \item{"pvalue":}{ P Value.}
+         \item{"tp":}{ Time period index.}
+         \item{"es":}{ Effect Size used for the simulation.}
+         \item{"treatment_start_time":}{ Treatment start time for the simulation}
+         \item{"investment":}{ Estimated Investment}
         }
 }
 \description{

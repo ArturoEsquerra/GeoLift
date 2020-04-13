@@ -10,7 +10,7 @@ GeoLiftPower(
   effect_size = seq(0, 10000, 50)/1000,
   treatment_periods,
   horizon = 30,
-  cpic = 1,
+  cpic = 0,
   X = c(),
   Y_id = "Y"
 )
@@ -34,7 +34,8 @@ data 30 days are recommended and 8-12 weeks for monthly data.
 The default window is 30.}
 
 \item{cpic}{Cost Per Incremental Conversion for estimated test
-minimum budget. The default value is 1.}
+minimum budget. The default value is 0, in which case no investment
+estimation will be provided.}
 
 \item{X}{List of names of covariates. No covariates are used
 by default.}
@@ -44,12 +45,12 @@ by default.}
 \value{
 GeoLiftPower object that contains:
      \itemize{
-         \item{"location"}{Test units of the simulation}
-         \item{"pvalue"}{P Value for each simulation}
-         \item{"duration"}{Duration of the simulation}
-         \item{"effect_size"}{Effect Size used for the simulation}
-         \item{"treatment_start"}{Treatment start time for the simulation}
-         \item{"investment"}{Estimated Investment}
+         \item{"location":}{ Test units of the simulation}
+         \item{"pvalue":}{ P Value for each simulation}
+         \item{"duration":}{ Duration of the simulation}
+         \item{"effect_size":}{ Effect Size used for the simulation}
+         \item{"treatment_start":}{ Treatment start time for the simulation}
+         \item{"investment":}{ Estimated Investment}
      }
 }
 \description{
