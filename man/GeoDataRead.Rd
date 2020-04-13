@@ -9,7 +9,6 @@ GeoDataRead(
   date_id = "date",
   location_id = "location",
   Y_id = "units",
-  max_time = 0,
   format = "mm/dd/yyyy",
   X = c()
 )

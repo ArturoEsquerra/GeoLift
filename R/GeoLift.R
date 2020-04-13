@@ -33,12 +33,15 @@
 #' @import MarketMatching
 #' @import stringr
 #' @import directlabels
+#' @import ggplot2
+#' @import tibble
+#' @import tidyr
 #'
 #' @export
-GeoDataRead <- function(data, date_id = "date",
+GeoDataRead <- function(data,
+                        date_id = "date",
                         location_id = "location",
                         Y_id = "units",
-                        max_time = 0,
                         format = "mm/dd/yyyy",
                         X = c()) {
 
@@ -61,7 +64,7 @@ GeoDataRead <- function(data, date_id = "date",
   }
 
   # Rename variables to standard names used by GeoLift
-  data <- data %>% rename(date = date_id,
+  data <- data %>% dplyr::rename(date = date_id,
                           Y = Y_id,
                           location = location_id)
 
@@ -157,7 +160,7 @@ GeoDataRead <- function(data, date_id = "date",
   TimePeriods <- data.frame(time = sort(unique(data$time)))
   TimePeriods$ID <- seq.int(nrow(TimePeriods))
 
-  data <- data %>% left_join(TimePeriods)
+  data <- data %>% dplyr::left_join(TimePeriods)
   data$time <- data$ID
 
   data <- subset(data, select = -c(date_unix, ID))
@@ -171,14 +174,14 @@ GeoDataRead <- function(data, date_id = "date",
   complete_cases[complete_cases > 0] <- 1
   complete <- rowSums(complete_cases) == total_periods
   complete <- complete[complete==TRUE]
-  data <- data %>% filter(location %in% names(complete))
+  data <- data %>% dplyr::filter(location %in% names(complete))
 
   # Aggregate Outcomes by time and location
   data_raw <- data
-  data <- data_raw %>% group_by(location, time) %>% summarize(Y = sum(Y))
+  data <- data_raw %>% dplyr::group_by(location, time) %>% dplyr::summarize(Y = sum(Y))
   for (var in X){
-    data_aux <- data_raw %>% group_by(location, time) %>% summarize(!!var := sum(!!sym(var)))
-    data <- data %>% left_join(data_aux, by = c("location", "time"))
+    data_aux <- data_raw %>% dplyr::group_by(location, time) %>% dplyr::summarize(!!var := sum(!!sym(var)))
+    data <- data %>% dplyr::left_join(data_aux, by = c("location", "time"))
   }
 
   return(as.data.frame(data))
@@ -270,7 +273,7 @@ TrimControls <- function(data,
                          forced_control_locations = c()){
 
 
-  data <- data %>% rename(time = time_id,
+  data <- data %>% dplyr::rename(time = time_id,
                           Y = Y_id,
                           location = location_id)
 
@@ -280,16 +283,16 @@ TrimControls <- function(data,
   }
 
   # Calculate the Average Time-Series
-  avg_Y <- data %>% group_by(time) %>% summarize(Y_mean = mean(Y))
+  avg_Y <- data %>% dplyr::group_by(time) %>% dplyr::summarize(Y_mean = mean(Y))
 
   # Append it to the data
-  data_aux <- data %>% left_join(avg_Y, by = "time")
+  data_aux <- data %>% dplyr::left_join(avg_Y, by = "time")
 
   # Compute the difference for each time/location
   data_aux$diff <- data_aux$Y - data_aux$Y_mean
 
   # Calculate the average difference
-  data_aux <- data_aux %>% group_by(location) %>% summarize(mean_diff = mean(diff))
+  data_aux <- data_aux %>% dplyr::group_by(location) %>% dplyr::summarize(mean_diff = mean(diff))
 
   # Calculate the percentiles for stratified sampling
   perc <- quantile(data_aux$mean_diff, probs = seq(0, 1, 0.2))
@@ -309,14 +312,14 @@ TrimControls <- function(data,
   }
 
   data_locs <- data_aux %>%
-    filter(!(location %in% test_locations)) %>%
-    group_by(percentile) %>%
-    sample_n(round(max_controls/length(perc)), replace = TRUE) %>%
-    distinct(location)
+    dplyr::filter(!(location %in% test_locations)) %>%
+    dplyr::group_by(percentile) %>%
+    dplyr::sample_n(round(max_controls/length(perc)), replace = TRUE) %>%
+    dplyr::distinct(location)
 
   final_locations <- unique(c(data_locs$location, test_locations, forced_control_locations))
 
-  data <- data %>% filter(location %in% final_locations)
+  data <- data %>% dplyr::filter(location %in% final_locations)
 
   return(data)
 
@@ -352,7 +355,7 @@ fn_treatment <- function(df,
          treatment_start_time <= df$time &
          df$time <= treatment_end_time] <- 1
 
-  df <- df %>% filter(time <= treatment_end_time) #Remove periods after treatment
+  df <- df %>% dplyr::filter(time <= treatment_end_time) #Remove periods after treatment
 
   return(df)
 
@@ -378,7 +381,7 @@ pvalue <- function(augsyn){
       summary(augsyn)[['average_att']][['Std.Error']]
   }
   else if(paste(augsyn$call)[1] == "multisynth"){
-    estimates <- summary(augsyn)$att %>% filter(Level == "Average" & is.na(Time) == TRUE)
+    estimates <- summary(augsyn)$att %>% dplyr::filter(Level == "Average" & is.na(Time) == TRUE)
     zscore <- estimates[['Estimate']]/estimates[['Std.Error']]
   }
   else {
@@ -442,7 +445,7 @@ pvalueCalc <- function(data,
 
 
   if (length(X) == 0){
-    pVal <- pvalue(augsynth(Y_inc ~ D, unit = location, time = time,
+    pVal <- pvalue(augsynth::augsynth(Y_inc ~ D, unit = location, time = time,
                             data = data_aux,
                             t_int = treatment_start_time,
                             progfunc = "GSYN", scm = T))
@@ -452,7 +455,7 @@ pvalueCalc <- function(data,
                              sapply(list(X),
                                     paste, collapse = "+")))
 
-    pVal <- pvalue(augsynth(fmla, unit = location, time = time,
+    pVal <- pvalue(augsynth::augsynth(fmla, unit = location, time = time,
                             data = data_aux,
                             t_int = treatment_start_time,
                             progfunc = "GSYN", scm = T))
@@ -495,7 +498,7 @@ pvalueCalc <- function(data,
 #' estimation will be provided.
 #' @param X List of names of covariates. No covariates are used
 #' by default.
-#' @param Y Name of the outcome variable. "Y" by default.
+#' @param Y_id Name of the outcome variable. "Y" by default.
 #'
 #' @return
 #' GeoLiftPower object that contains:
@@ -537,7 +540,7 @@ GeoLiftPower <- function(data,
   # Part 1: Treatment and pre-treatment periods
   max_time <- max(data$time)
   data$location <- tolower(data$location)
-  data <- data %>% rename(Y = paste(Y_id))
+  data <- data %>% dplyr::rename(Y = paste(Y_id))
 
   results <- data.frame(matrix(ncol=7,nrow=0))
   colnames(results) <- c("location","pvalue","duration","lift",
@@ -562,7 +565,7 @@ GeoLiftPower <- function(data,
                    }
 
       for (i in 1:ncol(a)) {
-        results <- results %>% add_row(location=a[[1,i]],
+        results <- results %>% tibble::add_row(location=a[[1,i]],
                                        pvalue = as.numeric(a[[2,i]]),
                                        duration = as.numeric(a[[3,i]]),
                                        lift = as.numeric(a[[4,i]]),
@@ -610,7 +613,7 @@ plot.GeoLiftPower <- function(x,
                      nrow = length(treatment_periods), ncol=length(lift),
                      dimnames=list("Treatment Periods" = treatment_periods, "Lift" = lift))
 
-  spending <- x %>% group_by(duration, lift) %>% summarize(inv = mean(investment))
+  spending <- x %>% dplyr::group_by(duration, lift) %>% dplyr::summarize(inv = mean(investment))
 
   if (table == TRUE){
     print(t(resultsM))
@@ -624,7 +627,7 @@ plot.GeoLiftPower <- function(x,
                      main=c("Treatment Periods: ",as.character(rownames(resultsM)[tp]), "\n investment"))
       abline(h = power)
       par(new=TRUE)
-      plot((spending %>% filter(duration == rownames(resultsM)[tp]))$inv, resultsM[tp,], type="n", xaxt = "n", yaxt = "n", ylab = "", xlab = "")
+      plot((spending %>% dplyr::filter(duration == rownames(resultsM)[tp]))$inv, resultsM[tp,], type="n", xaxt = "n", yaxt = "n", ylab = "", xlab = "")
       axis(side=3)
     }
 
@@ -697,7 +700,7 @@ NumberLocations <- function(data,
   max_time <- max(data$time)
   data$location <- tolower(data$location)
   locs <- unique(as.character(data$location))
-  data <- data %>% rename(Y = paste(Y_id))
+  data <- data %>% dplyr::rename(Y = paste(Y_id))
 
   times <- trunc(quantile(data$time, probs = c(0.25, 0.5, 0.75, 1), names = FALSE ))
 
@@ -727,7 +730,7 @@ NumberLocations <- function(data,
                    }
 
       for (i in 1:ncol(a)) {
-        results <- results %>% add_row(location = a[[1,i]],
+        results <- results %>% tibble::add_row(location = a[[1,i]],
                                        pvalue = as.numeric(a[[2,i]]),
                                        n = n,
                                        treatment_start = as.numeric(a[[5,i]])) }
@@ -740,8 +743,8 @@ NumberLocations <- function(data,
     results$pow <- 0
     results$pow[results$pvalue > 1 - conf.level] <- 1
 
-    resultsM <- results %>% group_by(n) %>%  summarize(mean_pow = mean(pow))
-    resultsM <- add_row(resultsM, n = 0, mean_pow = 0, .before = 1)
+    resultsM <- results %>% dplyr::group_by(n) %>%  dplyr::summarize(mean_pow = mean(pow))
+    resultsM <- tibble::add_row(resultsM, n = 0, mean_pow = 0, .before = 1)
 
     print(" Average Power By Number of Locations")
     print(resultsM)
@@ -783,11 +786,11 @@ MarketSelection <- function(data,
                             time_id = "time",
                             Y_id = "Y"){
 
-  data <- data %>% rename(Y = paste(Y_id), location = paste(location_id), time = paste(time_id))
+  data <- data %>% dplyr::rename(Y = paste(Y_id), location = paste(location_id), time = paste(time_id))
   data$location <- tolower(data$location)
 
   # Find the best matches based on DTW
-  mm <- best_matches( data = data,
+  mm <- MarketMatching::best_matches( data = data,
                       id_variable = "location",
                       date_variable = "time",
                       matching_variable = "Y",
@@ -799,7 +802,7 @@ MarketSelection <- function(data,
                       dtw_emphasis = 1 )
 
   # Create a matrix with each row being the raked best controls for each location
-  best_controls <- mm$BestMatches %>% pivot_wider(id_cols = location,
+  best_controls <- mm$BestMatches %>% tidyr::pivot_wider(id_cols = location,
                                                   names_from = rank,
                                                   values_from = BestControl)
 
@@ -864,7 +867,7 @@ GeoLiftPower.search <- function(data,
   # Part 1: Treatment and pre-treatment periods
   max_time <- max(data$time)
   data$location <- tolower(data$location)
-  data <- data %>% rename(Y = paste(Y_id))
+  data <- data %>% dplyr::rename(Y = paste(Y_id))
 
   results <- data.frame(matrix(ncol=4,nrow=0))
   colnames(results) <- c("location","pvalue","duration",
@@ -893,7 +896,7 @@ GeoLiftPower.search <- function(data,
                      }
 
         for (i in 1:ncol(a)) {
-          results <- results %>% add_row(location=a[[1,i]],
+          results <- results %>% tibble::add_row(location=a[[1,i]],
                                          pvalue = as.numeric(a[[2,i]]),
                                          duration = as.numeric(a[[3,i]]),
                                          treatment_start = as.numeric(a[[5,i]]))
@@ -905,9 +908,9 @@ GeoLiftPower.search <- function(data,
   }
 
   resultsM <- results %>%
-    group_by(location) %>%
-    summarize(mean_p = mean(pvalue)) %>%
-    arrange(desc(mean_p))
+    dplyr::group_by(location) %>%
+    dplyr::summarize(mean_p = mean(pvalue)) %>%
+    dplyr::arrange(desc(mean_p))
 
   stopCluster(cl)
   class(results) <- c("GeoLift.search", class(resultsM))
@@ -972,7 +975,7 @@ GeoLift <- function(Y_id = "Y",
                     treatment_end_time){
 
   # Rename variables to standard names used by GeoLift
-  data <- data %>% rename(time = time_id,
+  data <- data %>% dplyr::rename(time = time_id,
                           Y = Y_id,
                           location = location_id)
 
@@ -993,7 +996,7 @@ GeoLift <- function(Y_id = "Y",
 
   }
 
-  augsyn <- augsynth(fmla, unit = location, time = time,
+  augsyn <- augsynth::augsynth(fmla, unit = location, time = time,
                      data = data_aux,
                      t_int = treatment_start_time,
                      progfunc = "GSYN", scm = T)
@@ -1025,14 +1028,14 @@ GeoLift <- function(Y_id = "Y",
     incremental <- sum(augsyn$data$y[loc_id,])-
       sum(predict(augsyn)[treatment_start_time:treatment_end_time])
 
-    inference_df <- inference_df %>% add_row(ATT = mean,
+    inference_df <- inference_df %>% tibble::add_row(ATT = mean,
                                              Perc.Lift = 100 * round(lift, 3),
                                              pvalue = pvalue(augsyn),
                                              Lower.Conf.Int = mean-qnorm(0.95,0,1)*se,
                                              Upper.Conf.Int = mean+qnorm(0.95,0,1)*se)
   }
   else if(paste(augsyn$call)[1] == "multisynth"){
-    estimates <- summary(augsyn)$att %>% filter(Level == "Average" & is.na(Time) == TRUE)
+    estimates <- summary(augsyn)$att %>% dplyr::filter(Level == "Average" & is.na(Time) == TRUE)
     mean <- estimates[['Estimate']]
     se <- estimates[['Std.Error']]
 
@@ -1052,7 +1055,7 @@ GeoLift <- function(Y_id = "Y",
     incremental <- sum(augsyn$data$y[loc_id,]) -
       sum(predict(augsyn)[treatment_start_time:treatment_end_time,-1])
 
-    inference_df <- inference_df %>% add_row(ATT = mean,
+    inference_df <- inference_df %>% tibble::add_row(ATT = mean,
                                              Perc.Lift = 100 * round(lift, 3),
                                              pvalue = pvalue(augsyn),
                                              Lower.Conf.Int = mean-qnorm(0.95,0,1)*se,
@@ -1347,8 +1350,8 @@ Lift.plot <- function(GeoLift,
     colnames(y_hat) <- c("Units")
     y_hat$Time <- 1:nrow(y_hat)
 
-    df <- y_obs %>%  mutate(Type = 'Observed') %>%
-      bind_rows(y_hat %>% mutate(Type = 'Estimated'))
+    df <- y_obs %>%  dplyr::mutate(Type = 'Observed') %>%
+      bind_rows(y_hat %>% dplyr::mutate(Type = 'Estimated'))
 
     ymin <- min(df$Units)
     if (ymin < 0) {ymin <- 1.05*ymin
@@ -1378,8 +1381,8 @@ Lift.plot <- function(GeoLift,
     colnames(y_hat) <- c("Units")
     y_hat$Time <- 1:nrow(y_hat)
 
-    df <- y_obs %>%  mutate(Type = 'Observed') %>%
-      bind_rows(y_hat %>% mutate(Type = 'Estimated'))
+    df <- y_obs %>%  dplyr::mutate(Type = 'Observed') %>%
+      bind_rows(y_hat %>% dplyr::mutate(Type = 'Estimated'))
 
     ymin <- min(df$Units)
     if (ymin < 0) {ymin <- 1.05*ymin
@@ -1431,8 +1434,8 @@ Lift.loc.plot <- function(GeoLift,
     colnames(y_hat) <- c("Units")
     y_hat$Time <- 1:nrow(y_hat)
 
-    df <- y_obs %>%  mutate(Type = 'Observed') %>%
-      bind_rows(y_hat %>% mutate(Type = 'Estimated'))
+    df <- y_obs %>%  dplyr::mutate(Type = 'Observed') %>%
+      bind_rows(y_hat %>% dplyr::mutate(Type = 'Estimated'))
 
     ymin <- min(df$Units)
     if (ymin < 0) {ymin <- 1.05*ymin

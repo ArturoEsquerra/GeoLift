@@ -40,7 +40,7 @@ estimation will be provided.}
 \item{X}{List of names of covariates. No covariates are used
 by default.}
 
-\item{Y}{Name of the outcome variable. "Y" by default.}
+\item{Y_id}{Name of the outcome variable. "Y" by default.}
 }
 \value{
 GeoLiftPower object that contains:

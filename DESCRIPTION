@@ -35,7 +35,10 @@ Imports:
     ggrepel,
     MarketMatching,
     stringr,
-    directlabels
+    directlabels,
+    ggplot2,
+    tibble,
+    tidyr
 Suggests:
     fbr
 Encoding: UTF-8
