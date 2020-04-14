@@ -70,6 +70,7 @@ GeoDataRead <- function(data,
                           location = location_id)
 
   # Remove white spaces in date variable
+  data$date <- as.character(data$date)
   data$date <- trimws(data$date)
 
   # Location in lower-case for compatibility with GeoLift
