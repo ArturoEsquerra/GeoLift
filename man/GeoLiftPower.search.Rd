@@ -12,6 +12,8 @@ GeoLiftPower.search(
   horizon = 30,
   X = c(),
   Y_id = "Units",
+  location_id = "location",
+  time_id = "time",
   top_results = 5
 )
 }
@@ -32,6 +34,10 @@ The default window is 30.}
 \item{X}{List of names of covariates.}
 
 \item{Y_id}{Name of the outcome variable (String).}
+
+\item{location_id}{Name of the location variable (String).}
+
+\item{time_id}{Name of the time variable (String).}
 
 \item{top_results}{Number of results to display}
 }

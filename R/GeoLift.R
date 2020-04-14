@@ -500,6 +500,8 @@ pvalueCalc <- function(data,
 #' @param X List of names of covariates. No covariates are used
 #' by default.
 #' @param Y_id Name of the outcome variable. "Y" by default.
+#' @param location_id Name of the location variable. "Y" by default.
+#' @param time_id Name of the time variable. "Y" by default.
 #'
 #' @return
 #' GeoLiftPower object that contains:
@@ -520,7 +522,9 @@ GeoLiftPower <- function(data,
                          horizon = 30,
                          cpic = 0,
                          X = c(),
-                         Y_id = "Y"){
+                         Y_id = "Y",
+                         location_id = "location",
+                         time_id = "time"){
 
   cl <- parallel::makeCluster(parallel::detectCores() - 1)
   registerDoParallel(cl)
@@ -539,9 +543,9 @@ GeoLiftPower <- function(data,
   )
 
   # Part 1: Treatment and pre-treatment periods
+  data <- data %>% dplyr::rename(Y = paste(Y_id), location = paste(location_id), time = paste(time_id))
   max_time <- max(data$time)
   data$location <- tolower(data$location)
-  data <- data %>% dplyr::rename(Y = paste(Y_id))
 
   results <- data.frame(matrix(ncol=7,nrow=0))
   colnames(results) <- c("location","pvalue","duration","lift",
@@ -552,7 +556,8 @@ GeoLiftPower <- function(data,
       t_n <- max(data$time) - tp + 1 #Number of simulations without extrapolation
 
       a <- foreach(sim = 1:(t_n-horizon),
-                   .combine=cbind) %dopar% {
+                   .combine=cbind,
+                   .errorhandling = 'remove') %dopar% {
                      pvalueCalc(
                        data,
                        sim,
@@ -663,6 +668,8 @@ plot.GeoLiftPower <- function(x,
 #' @param n_sim Number of simulations.
 #' @param X List of covariate names.
 #' @param Y_id Name of the outcome variable (String).
+#' @param location_id Name of the location variable (String).
+#' @param time_id Name of the time variable (String).
 #' @param plot Plots results when TRUE.
 #' @param power Power level. By default 0.8.
 #' @param conf.level Confidence level. By default 0.9.
@@ -677,6 +684,8 @@ NumberLocations <- function(data,
                             n_sim = 50,
                             X = c(),
                             Y_id = "Y",
+                            location_id = "location",
+                            time_id = "time",
                             plot = TRUE,
                             power = 0.8,
                             conf.level = 0.9){
@@ -698,12 +707,12 @@ NumberLocations <- function(data,
   )
 
   # Part 1: Treatment and pre-treatment periods
+  data <- data %>% dplyr::rename(Y = paste(Y_id), location = paste(location_id), time = paste(time_id))
   max_time <- max(data$time)
   data$location <- tolower(data$location)
   locs <- unique(as.character(data$location))
-  data <- data %>% dplyr::rename(Y = paste(Y_id))
 
-  times <- trunc(quantile(data$time, probs = c(0.25, 0.5, 0.75, 1), names = FALSE ))
+  times <- trunc(quantile(data$time, probs = c(0.5, 0.75, 1), names = FALSE ))
 
   results <- data.frame(matrix(ncol=4, nrow=0))
   colnames(results) <- c("location","pvalue", "n", "treatment_start")
@@ -717,14 +726,15 @@ NumberLocations <- function(data,
     for (t in times){
 
       a <- foreach(sim = 1:n_sim,
-                   .combine=cbind) %dopar% {
+                   .combine=cbind,
+                   .errorhandling = 'remove') %dopar% {
                      pvalueCalc(
                        data = data,
                        sim = 1,
-                       max_time = t,
+                       max_time = t,#max_time,
                        tp = treatment_periods,
                        es = 0,
-                       locations = as.list(sample(locs,n)),
+                       locations = as.list(sample(locs,n, replace = FALSE )),
                        cpic = 0,
                        X = c())
 
@@ -835,6 +845,8 @@ MarketSelection <- function(data,
 #' The default window is 30.
 #' @param X List of names of covariates.
 #' @param Y_id Name of the outcome variable (String).
+#' @param location_id Name of the location variable (String).
+#' @param time_id Name of the time variable (String).
 #' @param top_results Number of results to display
 #'
 #' @return
@@ -848,6 +860,8 @@ GeoLiftPower.search <- function(data,
                                 horizon = 30,
                                 X = c(),
                                 Y_id = "Units",
+                                location_id = "location",
+                                time_id = "time",
                                 top_results = 5){
 
   cl <- parallel::makeCluster(parallel::detectCores() - 1)
@@ -867,9 +881,9 @@ GeoLiftPower.search <- function(data,
   )
 
   # Part 1: Treatment and pre-treatment periods
+  data <- data %>% dplyr::rename(Y = paste(Y_id), location = paste(location_id), time = paste(time_id))
   max_time <- max(data$time)
   data$location <- tolower(data$location)
-  data <- data %>% dplyr::rename(Y = paste(Y_id))
 
   results <- data.frame(matrix(ncol=4,nrow=0))
   colnames(results) <- c("location","pvalue","duration",
@@ -884,7 +898,8 @@ GeoLiftPower.search <- function(data,
         t_n <- max(data$time) - tp + 1 #Number of simulations without extrapolation
 
         a <- foreach(sim = 1:(t_n-horizon),
-                     .combine=cbind) %dopar% {
+                     .combine=cbind,
+                     .errorhandling = 'remove') %dopar% {
                        pvalueCalc(
                          data,
                          sim,

@@ -12,6 +12,8 @@ NumberLocations(
   n_sim = 50,
   X = c(),
   Y_id = "Y",
+  location_id = "location",
+  time_id = "time",
   plot = TRUE,
   power = 0.8,
   conf.level = 0.9
@@ -34,6 +36,10 @@ total number of locations.}
 \item{X}{List of covariate names.}
 
 \item{Y_id}{Name of the outcome variable (String).}
+
+\item{location_id}{Name of the location variable (String).}
+
+\item{time_id}{Name of the time variable (String).}
 
 \item{plot}{Plots results when TRUE.}
 

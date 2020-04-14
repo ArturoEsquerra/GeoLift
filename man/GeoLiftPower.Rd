@@ -12,7 +12,9 @@ GeoLiftPower(
   horizon = 30,
   cpic = 0,
   X = c(),
-  Y_id = "Y"
+  Y_id = "Y",
+  location_id = "location",
+  time_id = "time"
 )
 }
 \arguments{
@@ -41,6 +43,10 @@ estimation will be provided.}
 by default.}
 
 \item{Y_id}{Name of the outcome variable. "Y" by default.}
+
+\item{location_id}{Name of the location variable. "Y" by default.}
+
+\item{time_id}{Name of the time variable. "Y" by default.}
 }
 \value{
 GeoLiftPower object that contains:
