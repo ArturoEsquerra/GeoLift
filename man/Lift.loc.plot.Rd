@@ -10,6 +10,8 @@ Lift.loc.plot(GeoLift, outcome, ...)
 \item{GeoLift}{GeoLift object.}
 
 \item{outcome}{Name of the outcome variable. By default "Units".}
+
+\item{...}{additional arguments}
 }
 \value{
 Lift plot function for GeoLift for each test location.

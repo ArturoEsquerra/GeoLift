@@ -12,6 +12,8 @@ ATT.plot(GeoLift, outcome = "Units", conf.level = 0.9, ...)
 \item{outcome}{Name of the outcome variable. By default "Units".}
 
 \item{conf.level}{Confidence level. By defaul 0.9.}
+
+\item{...}{additional arguments}
 }
 \value{
 ATT plot for GeoLift.

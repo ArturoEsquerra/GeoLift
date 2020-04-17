@@ -14,6 +14,8 @@
 \item{conf.level}{Confidence level. By default 0.9.}
 
 \item{table}{Plot the table of power estimates. TRUE by default.}
+
+\item{...}{additional arguments}
 }
 \value{
 GeoLiftPower plot.

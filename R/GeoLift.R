@@ -1,3 +1,29 @@
+# Suppress 'no visible binding for global variable' warnings
+utils::globalVariables(
+  c(
+    'ATT',
+    "Time",
+    "lower",
+    "upper",
+    "diff_lower",
+    "diff_upper",
+    "date_unix",
+    "ID",
+    "time",
+    "Y",
+    "Level",
+    "sim",
+    "mean_p",
+    "Units",
+    "Type",
+    "BestControl",
+    "pow",
+    "duration",
+    "investment",
+    "Level"
+  )
+)
+
 #' Data reading function for GeoLift.
 #'
 #' @description
@@ -37,6 +63,10 @@
 #' @import tibble
 #' @import tidyr
 #' @import parallel
+#' @import graphics
+#' @import stats
+#' @import utils
+#' @import rlang
 #'
 #' @export
 GeoDataRead <- function(data,
@@ -601,6 +631,7 @@ GeoLiftPower <- function(data,
 #' @param power Power level. By default 0.8.
 #' @param conf.level Confidence level. By default 0.9.
 #' @param table Plot the table of power estimates. TRUE by default.
+#' @param ... additional arguments
 #'
 #' @return
 #' GeoLiftPower plot.
@@ -615,10 +646,19 @@ plot.GeoLiftPower <- function(x,
     stop('object must be class GeoLiftPower')
   }
 
-  resultsM <- matrix(table(x$duration[x$pvalue <= 1 - conf.level],
-                           x$lift[x$pvalue <= 1 - conf.level]) / table(x$duration, x$lift),
-                     nrow = length(treatment_periods), ncol=length(lift),
-                     dimnames=list("Treatment Periods" = treatment_periods, "Lift" = lift))
+  treatment_periods <- unique(x$duration)
+  lift <- unique(x$lift)
+
+  total_cases <- matrix(table(x$duration, x$lift),
+                        nrow = length(treatment_periods), ncol=length(lift),
+                        dimnames=list("Treatment Periods" = treatment_periods, "Lift" = lift))
+
+  powered_cases <- matrix(table(x$duration[x$pvalue <= 1 - conf.level],
+                                x$lift[x$pvalue <= 1 - conf.level]),
+                          nrow = length(treatment_periods), ncol=length(lift),
+                          dimnames=list("Treatment Periods" = treatment_periods, "Lift" = lift))
+
+  resultsM <- powered_cases / total_cases
 
   spending <- x %>% dplyr::group_by(duration, lift) %>% dplyr::summarize(inv = mean(investment))
 
@@ -1148,6 +1188,7 @@ GeoLift <- function(Y_id = "Y",
 #' @param conf.level Confidence level. By defaul 0.9.
 #' @param test_locs Plot the average results by default. If set to
 #' TRUE, the ATT by test location is plotted.
+#' @param ... additional arguments
 #'
 #' @return
 #' GeoLift plot.
@@ -1199,6 +1240,7 @@ plot.GeoLift <- function(GeoLift,
 #' @param GeoLift GeoLift object.
 #' @param outcome Name of the outcome variable. By default "Units".
 #' @param conf.level Confidence level. By defaul 0.9.
+#' @param ... additional arguments
 #'
 #' @return
 #' ATT plot for GeoLift.
@@ -1290,6 +1332,7 @@ ATT.plot <- function(GeoLift,
 #'
 #' @param GeoLift GeoLift object.
 #' @param conf.level Confidence level. By defaul 0.9.
+#' @param ... additional arguments
 #'
 #' @return
 #' ATT plot for GeoLift for each test location.
@@ -1352,6 +1395,7 @@ ATT.loc.plot <- function(GeoLift,
 #'
 #' @param GeoLift GeoLift object.
 #' @param outcome Name of the outcome variable. By default "Units".
+#' @param ... additional arguments
 #'
 #' @return
 #' Aggregate Lift plot.
@@ -1437,6 +1481,7 @@ Lift.plot <- function(GeoLift,
 #'
 #' @return
 #' Lift plot function for GeoLift for each test location.
+#' @param ... additional arguments
 #'
 #' @export
 Lift.loc.plot <- function(GeoLift,

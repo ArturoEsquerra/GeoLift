@@ -10,6 +10,8 @@ Lift.plot(GeoLift, outcome, ...)
 \item{GeoLift}{GeoLift object.}
 
 \item{outcome}{Name of the outcome variable. By default "Units".}
+
+\item{...}{additional arguments}
 }
 \value{
 Aggregate Lift plot.

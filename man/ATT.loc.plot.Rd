@@ -10,6 +10,8 @@ ATT.loc.plot(GeoLift, conf.level = 0.9, ...)
 \item{GeoLift}{GeoLift object.}
 
 \item{conf.level}{Confidence level. By defaul 0.9.}
+
+\item{...}{additional arguments}
 }
 \value{
 ATT plot for GeoLift for each test location.

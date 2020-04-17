@@ -26,6 +26,8 @@ the average ATT is plotted.}
 
 \item{test_locs}{Plot the average results by default. If set to
 TRUE, the ATT by test location is plotted.}
+
+\item{...}{additional arguments}
 }
 \value{
 GeoLift plot.

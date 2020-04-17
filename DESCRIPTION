@@ -1,6 +1,6 @@
 Package: GeoLift
 Title: GeoLift Method to Calculate Lift at a Geo Level
-Version: 1.0
+Version: 1.0.1
 Authors@R: c(
     person(given = "Arturo",
            family = "Esquerra",
@@ -39,7 +39,11 @@ Imports:
     ggplot2,
     tibble,
     tidyr,
-    parallel
+    parallel,
+    graphics,
+    stats,
+    utils,
+    rlang
 Suggests:
     fbr
 Encoding: UTF-8
