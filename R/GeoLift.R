@@ -649,16 +649,17 @@ plot.GeoLiftPower <- function(x,
   treatment_periods <- unique(x$duration)
   lift <- unique(x$lift)
 
+
   resultsM <- matrix(0,nrow = length(treatment_periods), ncol=length(lift),
                      dimnames=list("Treatment Periods" = treatment_periods, "Lift" = lift))
 
   for (duration in rownames(resultsM)){
-    for (lift in colnames(resultsM)){
-      resultsM[[duration, lift]] <- nrow(x[x$pvalue < 1 - conf.level &
-                                               x$duration == as.numeric(duration) &
-                                               x$lift == as.numeric(lift),]) /
-                                    nrow(x[x$duration == as.numeric(duration) &
-                                               x$lift == as.numeric(lift),])
+    for (lifts in colnames(resultsM)){
+      resultsM[[duration, lifts]] <- round(nrow(x[x$pvalue < 1 - conf.level &
+                                                    x$duration == as.numeric(duration) &
+                                                    x$lift == as.numeric(lifts),]) /
+                                             nrow(x[x$duration == as.numeric(duration) &
+                                                      x$lift == as.numeric(lifts),]),5)
     }
   }
 
