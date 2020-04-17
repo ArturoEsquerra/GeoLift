@@ -649,16 +649,18 @@ plot.GeoLiftPower <- function(x,
   treatment_periods <- unique(x$duration)
   lift <- unique(x$lift)
 
-  total_cases <- matrix(table(x$duration, x$lift),
-                        nrow = length(treatment_periods), ncol=length(lift),
-                        dimnames=list("Treatment Periods" = treatment_periods, "Lift" = lift))
+  resultsM <- matrix(0,nrow = length(treatment_periods), ncol=length(lift),
+                     dimnames=list("Treatment Periods" = treatment_periods, "Lift" = lift))
 
-  powered_cases <- matrix(table(x$duration[x$pvalue <= 1 - conf.level],
-                                x$lift[x$pvalue <= 1 - conf.level]),
-                          nrow = length(treatment_periods), ncol=length(lift),
-                          dimnames=list("Treatment Periods" = treatment_periods, "Lift" = lift))
-
-  resultsM <- powered_cases / total_cases
+  for (duration in rownames(resultsM)){
+    for (lift in colnames(resultsM)){
+      resultsM[[duration, lift]] <- nrow(x[x$pvalue <  - conf.level &
+                                               x$duration == as.numeric(duration) &
+                                               x$lift == as.numeric(lift),]) /
+        nrow(x[x$duration == as.numeric(duration) &
+                   x$lift == as.numeric(lift),])
+    }
+  }
 
   spending <- x %>% dplyr::group_by(duration, lift) %>% dplyr::summarize(inv = mean(investment))
 
