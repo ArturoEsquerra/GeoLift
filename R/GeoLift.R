@@ -654,11 +654,11 @@ plot.GeoLiftPower <- function(x,
 
   for (duration in rownames(resultsM)){
     for (lift in colnames(resultsM)){
-      resultsM[[duration, lift]] <- nrow(x[x$pvalue <  - conf.level &
+      resultsM[[duration, lift]] <- nrow(x[x$pvalue < 1 - conf.level &
                                                x$duration == as.numeric(duration) &
                                                x$lift == as.numeric(lift),]) /
-        nrow(x[x$duration == as.numeric(duration) &
-                   x$lift == as.numeric(lift),])
+                                    nrow(x[x$duration == as.numeric(duration) &
+                                               x$lift == as.numeric(lift),])
     }
   }
 
