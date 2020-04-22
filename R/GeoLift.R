@@ -578,6 +578,11 @@ GeoLiftPower <- function(data,
   max_time <- max(data$time)
   data$location <- tolower(data$location)
 
+  if (max(treatment_periods)/max_time > 0.8){
+    message(paste0("Warning: Small pre-treatment period.
+                   \nTthe treatment is larger that 80% of all available data."))
+  }
+
   results <- data.frame(matrix(ncol=7,nrow=0))
   colnames(results) <- c("location","pvalue","duration","lift",
                          "treatment_start", "investment", "cpic")
@@ -669,9 +674,19 @@ plot.GeoLiftPower <- function(x,
     print(t(resultsM))
   }
 
+  #print(str(resultsM))
+  #resultsM<- cbind(resultsM,
+  #                 matrix(0,nrow = length(treatment_periods), ncol=1,
+  #                        dimnames=list("Treatment Periods" = treatment_periods, "Lift" = -1)))
+
+  #print(resultsM)
+  #print(str(resultsM))
+  #lift <- c(-1,lift)
   if (sum(spending$inv > 0)) {
     for(tp in 1:nrow(resultsM)){
       par(mar = c(5, 5, 10, 5))
+      #print(lift)
+      #print(resultsM[tp,])
       scatter.smooth(lift, resultsM[tp,],span=0.5, type="n", ylim = c(0,1),
                      xlab="Effect Size", ylab="Power",  lpars = list(col = "red", lwd = 3),
                      main=c("Treatment Periods: ",as.character(rownames(resultsM)[tp]), "\n investment"))
@@ -756,7 +771,12 @@ NumberLocations <- function(data,
   data$location <- tolower(data$location)
   locs <- unique(as.character(data$location))
 
-  times <- trunc(quantile(data$time, probs = c(0.5, 0.75, 1), names = FALSE ))
+  if (treatment_periods/max_time > 0.8){
+    message(paste0("Warning: Small pre-treatment period.
+                   \nTthe treatment is larger that 80% of all available data."))
+  }
+
+  #times <- trunc(quantile(data$time, probs = c(0.5, 0.75, 1), names = FALSE ))
 
   results <- data.frame(matrix(ncol=4, nrow=0))
   colnames(results) <- c("location","pvalue", "n", "treatment_start")
@@ -767,7 +787,7 @@ NumberLocations <- function(data,
   }
 
   for(n in number_locations){
-    for (t in times){
+    #for (t in times){
 
       a <- foreach(sim = 1:n_sim,
                    .combine=cbind,
@@ -775,7 +795,7 @@ NumberLocations <- function(data,
                      pvalueCalc(
                        data = data,
                        sim = 1,
-                       max_time = t,#max_time,
+                       max_time = max_time,#max_time,
                        tp = treatment_periods,
                        es = 0,
                        locations = as.list(sample(locs,n, replace = FALSE )),
@@ -790,7 +810,7 @@ NumberLocations <- function(data,
                                              n = n,
                                              treatment_start = as.numeric(a[[5,i]]) ) )
         }
-    }
+    #}
   }
 
   stopCluster(cl)
@@ -928,6 +948,11 @@ GeoLiftPower.search <- function(data,
   data <- data %>% dplyr::rename(Y = paste(Y_id), location = paste(location_id), time = paste(time_id))
   max_time <- max(data$time)
   data$location <- tolower(data$location)
+
+  if (max(treatment_periods)/max_time > 0.8){
+    message(paste0("Warning: Small pre-treatment period.
+                   \nTthe treatment is larger that 80% of all available data."))
+  }
 
   results <- data.frame(matrix(ncol=4,nrow=0))
   colnames(results) <- c("location","pvalue","duration",
