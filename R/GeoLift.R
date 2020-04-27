@@ -89,7 +89,7 @@ GeoDataRead <- function(data,
   valid_formats <- c(valid_formats_day, valid_formats_week, valid_formats_month)
 
   if (!(format %in% valid_formats) ){
-    print("Error: Please enter a valid date format. Valid formats are:")
+    message("Error: Please enter a valid date format. Valid formats are:")
     print(valid_formats)
     return(NULL)
   }
@@ -105,6 +105,7 @@ GeoDataRead <- function(data,
 
   # Location in lower-case for compatibility with GeoLift
   data$location <- tolower(data$location)
+  initial_locations <- length(unique(data$location))
 
   # Determine the separator
   if (str_count(format, pattern = fixed("/")) > 0){
@@ -119,8 +120,8 @@ GeoDataRead <- function(data,
 
   # Make sure the data is complete for formats without sep
   if ( sep == "" & min(nchar(data$date)) != nchar(format)) {
-    print("Error: The length of the date is incorrect.")
-    print("Make sure the entries have trailig zeroes (1/1/2012 -> 01/01/2012)")
+    message("Error: The length of the date is incorrect.")
+    message("Make sure the entries have trailig zeroes (1/1/2012 -> 01/01/2012)")
     return(NULL)
   }
 
@@ -177,7 +178,7 @@ GeoDataRead <- function(data,
 
   #Remove NAs from date conversion
   if (sum(is.na(data$date_unix)) > 0){
-    print(paste0(sum(is.na(data$date_unix)), " rows dropped due to inconsistent time format."))
+    message(paste0(sum(is.na(data$date_unix)), " rows dropped due to inconsistent time format."))
     data <- data[is.na(data$date_unix) == FALSE,]
   }
 
@@ -205,8 +206,10 @@ GeoDataRead <- function(data,
   complete_cases <- table(data$location, data$time)
   complete_cases[complete_cases > 0] <- 1
   complete <- rowSums(complete_cases) == total_periods
+  incomplete_locations <- length(complete) - length(complete[complete==TRUE])
   complete <- complete[complete==TRUE]
   data <- data %>% dplyr::filter(location %in% names(complete))
+
 
   # Aggregate Outcomes by time and location
   data_raw <- data
@@ -215,6 +218,15 @@ GeoDataRead <- function(data,
     data_aux <- data_raw %>% dplyr::group_by(location, time) %>% dplyr::summarize(!!var := sum(!!sym(var)))
     data <- data %>% dplyr::left_join(data_aux, by = c("location", "time"))
   }
+
+  # Print summary of Data Reading
+  message(paste0(
+    "##################################",
+    "\n#####       Summary       #####\n",
+    "##################################\n",
+    "\n* Raw Number of Locations: ", initial_locations,
+    "\n* Time Periods: ", total_periods,
+    "\n* Final Number of Locations (Complete): ", length(unique(data$location))  ) )
 
   return(as.data.frame(data))
 
