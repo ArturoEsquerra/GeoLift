@@ -44,6 +44,7 @@ utils::globalVariables(
 #' @param Y_id Name of the outcome variable (String).
 #' @param format Format of the dates in the data frame.
 #' @param X List of names of the covariates.
+#' @param summary Display a summary of the data-reading process. FALSE by default.
 #'
 #' @return
 #' A data frame for GeoLift inference and power calculations.
@@ -74,7 +75,8 @@ GeoDataRead <- function(data,
                         location_id = "location",
                         Y_id = "units",
                         format = "mm/dd/yyyy",
-                        X = c()) {
+                        X = c(),
+                        summary = FALSE) {
 
   format <- tolower(format)
 
@@ -220,13 +222,15 @@ GeoDataRead <- function(data,
   }
 
   # Print summary of Data Reading
-  message(paste0(
-    "##################################",
-    "\n#####       Summary       #####\n",
-    "##################################\n",
-    "\n* Raw Number of Locations: ", initial_locations,
-    "\n* Time Periods: ", total_periods,
-    "\n* Final Number of Locations (Complete): ", length(unique(data$location))  ) )
+  if (summary == TRUE) {
+    message(paste0(
+      "##################################",
+      "\n#####       Summary       #####\n",
+      "##################################\n",
+      "\n* Raw Number of Locations: ", initial_locations,
+      "\n* Time Periods: ", total_periods,
+      "\n* Final Number of Locations (Complete): ", length(unique(data$location))  ) )
+  }
 
   return(as.data.frame(data))
 
