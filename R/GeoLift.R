@@ -510,7 +510,7 @@ pvalueCalc <- function(data,
   }
 
 
-  investment <- cpic*data_aux$Y[data_aux$D==1]*(es)
+  investment <- cpic*sum(data_aux$Y[data_aux$D==1])*(es)
 
   return (
     c(paste(locations, collapse="; "),

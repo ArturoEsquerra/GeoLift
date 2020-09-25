@@ -10,7 +10,8 @@ GeoDataRead(
   location_id = "location",
   Y_id = "units",
   format = "mm/dd/yyyy",
-  X = c()
+  X = c(),
+  summary = FALSE
 )
 }
 \arguments{
@@ -28,6 +29,8 @@ of the time period (starting at 1), and covariates.}
 \item{format}{Format of the dates in the data frame.}
 
 \item{X}{List of names of the covariates.}
+
+\item{summary}{Display a summary of the data-reading process. FALSE by default.}
 }
 \value{
 A data frame for GeoLift inference and power calculations.
