@@ -4,10 +4,12 @@
 \alias{summary.GeoLift}
 \title{Summary method for GeoLift.}
 \usage{
-\method{summary}{GeoLift}(GeoLift)
+\method{summary}{GeoLift}(object, ...)
 }
 \arguments{
-\item{GeoLift}{GeoLift object.}
+\item{object}{GeoLift object.}
+
+\item{...}{Optional arguments}
 }
 \value{
 GeoLift summary object that contains:
@@ -27,6 +29,12 @@ GeoLift summary object that contains:
          \item{"type":}{ Single or Multiple test locations.}
          \item{"Y_id":}{ Name of the outcome variable.}
          \item{"incremental":}{ Incremental outcome units.}
+         \item{"bias":}{ Estimated corrected bias.}
+         \item{"weights":}{ Synthetic Control Weights.}
+         \item{"CI":}{ Flag indicating whether to include Confidence Intervals.}
+         \item{"alpha":}{ Significance level.}
+         \item{"lower":}{ Lower Bound Confidence Interval.}
+         \item{"upper":}{ Upper Bound Confidence Interval.}
       }
 }
 \description{

@@ -7,14 +7,20 @@
 GeoLiftPower(
   data,
   locations,
-  effect_size = seq(0, 10000, 50)/1000,
+  effect_size = seq(0, 1, 0.05),
   treatment_periods,
-  horizon = 30,
+  horizon = -1,
   cpic = 0,
   X = c(),
   Y_id = "Y",
   location_id = "location",
-  time_id = "time"
+  time_id = "time",
+  alpha = 0.1,
+  type = "pValue",
+  normalize = FALSE,
+  model = "none",
+  fixed_effects = TRUE,
+  ProgressBar = FALSE
 )
 }
 \arguments{
@@ -26,14 +32,19 @@ of the time period (starting at 1), and covariates.}
 \item{locations}{A semi-colon separated list of test geo locations.}
 
 \item{effect_size}{A vector of effect sizes to test by default a
-sequence between 0 - 15 percent: seq(0,10000,50)/1000.}
+sequence between 0 - 100 percent in 5 percent increments: seq(0,1,0.05).}
 
 \item{treatment_periods}{Expected length of the test. A vector of
 possible lengths can be entered for multiple options.}
 
-\item{horizon}{Lookback window for the power analysis. For daily
-data 30 days are recommended and 8-12 weeks for monthly data.
-The default window is 30.}
+\item{horizon}{An integer that defines at which time-stamp the power simulations
+will start. This parameter allows the user to define which period is most relevant
+for the test's current in-market dynamics (a very small horizon will include
+simulations of time periods with dynamics that might not be relevant anymore).
+Ideally the horizon should encompass at least of couple of times the test length.
+For instance, for a power analysis with 180 days of historical data and a 15 day
+test, we would recommend setting horizon to at least 150. By default horizon is set
+to -1 which will  execute the smallest possible horizon with the provided data.}
 
 \item{cpic}{Cost Per Incremental Conversion for estimated test
 minimum budget. The default value is 0, in which case no investment
@@ -47,6 +58,36 @@ by default.}
 \item{location_id}{Name of the location variable. "Y" by default.}
 
 \item{time_id}{Name of the time variable. "Y" by default.}
+
+\item{alpha}{Significance level. Set to 0.1 by default.}
+
+\item{type}{Method of inference used in the analysis.
+pValue=Provides conformal inference to provide the aggregate
+p-value for the null hypothesis of no effect from the intervention.
+The Default type is pValue.
+Imbalance=Uses the model's Scaled L2 Imbalance metric.}
+
+\item{normalize}{A logic flag indicating whether to scale the outcome which is
+useful to accelerate computing speed when the magnitude of the data is large. The
+default is FALSE.}
+
+\item{model}{A string indicating the outcome model used to augment the Augmented
+Synthetic Control Method. Augmentation through a prognostic function can improve
+fit and reduce L2 imbalance metrics.
+\itemize{
+         \item{"None":}{ ASCM is not augmented by a prognostic function. Defualt.}
+         \item{"Ridge":}{ Augments with a Ridge regression. Recommended to improve fit
+                          for smaller panels (less than 40 locations and 100 time-stamps.))}
+         \item{"GSYN":}{ Augments with a Generalized Synthetic Control Method. Recommended
+                         to improve fit for larger panels (more than 40 locations and 100
+                         time-stamps. }
+         }}
+
+\item{fixed_effects}{A logic flag indicating whether to include unit fixed
+effects in the model. Set to TRUE by default.}
+
+\item{ProgressBar}{A logic flag indicating whether to display a progress bar
+to track progress. Set to FALSE by default.}
 }
 \value{
 GeoLiftPower object that contains:
@@ -57,6 +98,8 @@ GeoLiftPower object that contains:
          \item{"effect_size":}{ Effect Size used for the simulation}
          \item{"treatment_start":}{ Treatment start time for the simulation}
          \item{"investment":}{ Estimated Investment}
+         \item{"cpipc":}{ Cost Per Incremental Conversion}
+         \item{"ScaledL2Imbalance":}{ Scaled L2 Imbalance metric}
      }
 }
 \description{

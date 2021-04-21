@@ -4,7 +4,13 @@
 \alias{MarketSelection}
 \title{Market selection tool.}
 \usage{
-MarketSelection(data, location_id = "location", time_id = "time", Y_id = "Y")
+MarketSelection(
+  data,
+  location_id = "location",
+  time_id = "time",
+  Y_id = "Y",
+  dtw = 0
+)
 }
 \arguments{
 \item{data}{A data.frame containing the historical conversions by
@@ -17,6 +23,9 @@ of the time period (starting at 1), and covariates.}
 \item{time_id}{Name of the time variable (String).}
 
 \item{Y_id}{Name of the outcome variable (String).}
+
+\item{dtw}{Emphasis on Dynamic Time Warping (DTW), dtw = 1 focuses exclusively
+on this metric while dtw = 0 (default) relies on correlations only.}
 }
 \value{
 Matrix of the best markets. The second to last columns show

@@ -4,12 +4,25 @@
 \alias{Lift.plot}
 \title{Aggregate Lift plot function for GeoLift.}
 \usage{
-Lift.plot(GeoLift, outcome, ...)
+Lift.plot(
+  GeoLift,
+  outcome = "Units",
+  main = "",
+  subtitle = "",
+  notes = "",
+  ...
+)
 }
 \arguments{
 \item{GeoLift}{GeoLift object.}
 
-\item{outcome}{Name of the outcome variable. By default "Units".}
+\item{outcome}{String for the name of the outcome variable. By default "Units".}
+
+\item{main}{String for the title of the plot. Empty by default.}
+
+\item{subtitle}{String for the subtitle of the plot. Empty by default.}
+
+\item{notes}{String to add notes to the plot. Empty by default.}
 
 \item{...}{additional arguments}
 }

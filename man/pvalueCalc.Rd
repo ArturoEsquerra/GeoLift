@@ -4,7 +4,20 @@
 \alias{pvalueCalc}
 \title{Calculate p-value for GeoLift.}
 \usage{
-pvalueCalc(data, sim, max_time, tp, es, locations, cpic, X)
+pvalueCalc(
+  data,
+  sim,
+  max_time,
+  tp,
+  es,
+  locations,
+  cpic,
+  X,
+  type = "pValue",
+  normalize = FALSE,
+  fixed_effects = FALSE,
+  model = "GSYN"
+)
 }
 \arguments{
 \item{data}{A data.frame containing the historical conversions by
@@ -25,6 +38,22 @@ of the time period (starting at 1), and covariates.}
 \item{cpic}{Cost Per Incremental Conversion.}
 
 \item{X}{List of names of covariates.}
+
+\item{type}{Method of inference used in the analysis.
+pValue=Provides conformal inference to provide the aggregate
+p-value for the null hypothesis of no effect from the intervention.
+The Default type is pValue.
+Imbalance=Uses the model's Scaled L2 Imbalance metric.}
+
+\item{normalize}{A logic flag indicating whether to scale the outcome which is
+useful to accelerate computing speed when the magnitude of the data is large. The
+default is FALSE.}
+
+\item{fixed_effects}{A logic flag indicating whether to include unit fixed
+effects in the model. Set to FALSE by default.}
+
+\item{model}{A string indicating the outcome model used in the Augmented Synthetic
+Control Method. Set to Generalized Synthetic Controls "GSYN" by default.}
 }
 \value{
 List that contains:
@@ -35,6 +64,7 @@ List that contains:
          \item{"es":}{ Effect Size used for the simulation.}
          \item{"treatment_start_time":}{ Treatment start time for the simulation}
          \item{"investment":}{ Estimated Investment}
+         \item{"ScaledL2Imbalance":}{ Scaled L2 Imbalance metric}
         }
 }
 \description{
