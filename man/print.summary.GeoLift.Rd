@@ -4,10 +4,12 @@
 \alias{print.summary.GeoLift}
 \title{Summary plotting method for GeoLift.}
 \usage{
-\method{print}{summary.GeoLift}(summ)
+\method{print}{summary.GeoLift}(x, ...)
 }
 \arguments{
-\item{summ}{GeoLift summary object.}
+\item{x}{GeoLift summary object.}
+
+\item{...}{Optional arguments.}
 }
 \value{
 Plot GeoLift summary.

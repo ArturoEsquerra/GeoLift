@@ -7,6 +7,8 @@ utils::globalVariables(
     "upper",
     "diff_lower",
     "diff_upper",
+    "conf_level",
+    "conf.level",
     "date_unix",
     "ID",
     "time",
@@ -20,7 +22,24 @@ utils::globalVariables(
     "pow",
     "duration",
     "investment",
-    "Level"
+    "Level",
+    "location",
+    "ScaledL2Imbalance",
+    "mean_pow",
+    "mean_scaled_l2_imbalance",
+    "mean_L2ScaledImbalance",
+    "ProportionTotal_Y",
+    "Total_Y",
+    "Locs",
+    "AvgCost",
+    "main",
+    "test",
+    "significant",
+    "lift",
+    "treatment_start",
+    "summ",
+    "pvalue",
+    "effect_size"
   )
 )
 
@@ -48,26 +67,6 @@ utils::globalVariables(
 #'
 #' @return
 #' A data frame for GeoLift inference and power calculations.
-#'
-#' @import augsynth
-#' @import gsynth
-#' @import panelView
-#' @import plyr
-#' @import dplyr
-#' @import doParallel
-#' @import foreach
-#' @import ggrepel
-#' @import MarketMatching
-#' @import stringr
-#' @import directlabels
-#' @import ggplot2
-#' @import tibble
-#' @import tidyr
-#' @import parallel
-#' @import graphics
-#' @import stats
-#' @import utils
-#' @import rlang
 #'
 #' @export
 GeoDataRead <- function(data,
@@ -98,8 +97,8 @@ GeoDataRead <- function(data,
 
   # Rename variables to standard names used by GeoLift
   data <- data %>% dplyr::rename(date = date_id,
-                          Y = Y_id,
-                          location = location_id)
+                                 Y = Y_id,
+                                 location = location_id)
 
   # Remove white spaces in date variable
   data$date <- as.character(data$date)
@@ -108,6 +107,9 @@ GeoDataRead <- function(data,
   # Location in lower-case for compatibility with GeoLift
   data$location <- tolower(data$location)
   initial_locations <- length(unique(data$location))
+
+  #NEWCHANGE: Remove commas from locations
+  data$location <- gsub(",", "", gsub("([a-zA-Z]),", "\\1", data$location))
 
   # Determine the separator
   if (str_count(format, pattern = fixed("/")) > 0){
@@ -195,7 +197,7 @@ GeoDataRead <- function(data,
   TimePeriods <- data.frame(time = sort(unique(data$time)))
   TimePeriods$ID <- seq.int(nrow(TimePeriods))
 
-  data <- data %>% dplyr::left_join(TimePeriods)
+  data <- data %>% dplyr::left_join(TimePeriods, by = "time")
   data$time <- data$ID
 
   data <- subset(data, select = -c(date_unix, ID))
@@ -237,7 +239,7 @@ GeoDataRead <- function(data,
 }
 
 
-#' Plotting function for Exploratory Analisis.
+#' Plotting function for Exploratory Analysis.
 #'
 #' @description
 #'
@@ -322,8 +324,8 @@ TrimControls <- function(data,
 
 
   data <- data %>% dplyr::rename(time = time_id,
-                          Y = Y_id,
-                          location = location_id)
+                                 Y = Y_id,
+                                 location = location_id)
 
   if (max_controls > length(unique(data$location))){
     print("Error: There can't be more controls than total locations.")
@@ -410,36 +412,6 @@ fn_treatment <- function(df,
 }
 
 
-#' P-value calculation for GeoLift.
-#'
-#' @description
-#'
-#' \code{pvalue} calculates the p-value for a GeoLift object.
-#'
-#' @param augsyn GeoLift object.
-#'
-#' @return
-#' P-value.
-#'
-#' @export
-pvalue <- function(augsyn){
-
-  if(paste(augsyn$call)[1] == "single_augsynth"){
-    zscore <- summary(augsyn)[['average_att']][['Estimate']]/
-      summary(augsyn)[['average_att']][['Std.Error']]
-  }
-  else if(paste(augsyn$call)[1] == "multisynth"){
-    estimates <- summary(augsyn)$att %>% dplyr::filter(Level == "Average" & is.na(Time) == TRUE)
-    zscore <- estimates[['Estimate']]/estimates[['Std.Error']]
-  }
-  else {
-    return(999)
-  }
-
-  return(2*(1-pnorm(abs(zscore))))
-}
-
-
 #' Calculate p-value for GeoLift.
 #'
 #' @description
@@ -457,6 +429,18 @@ pvalue <- function(augsyn){
 #' @param locations List of test locations.
 #' @param cpic Cost Per Incremental Conversion.
 #' @param X List of names of covariates.
+#' @param type Method of inference used in the analysis.
+#'             pValue=Provides conformal inference to provide the aggregate
+#'             p-value for the null hypothesis of no effect from the intervention.
+#'             The Default type is pValue.
+#'             Imbalance=Uses the model's Scaled L2 Imbalance metric.
+#' @param normalize A logic flag indicating whether to scale the outcome which is
+#' useful to accelerate computing speed when the magnitude of the data is large. The
+#' default is FALSE.
+#' @param fixed_effects A logic flag indicating whether to include unit fixed
+#' effects in the model. Set to FALSE by default.
+#' @param model A string indicating the outcome model used in the Augmented Synthetic
+#' Control Method. Set to Generalized Synthetic Controls "GSYN" by default.
 #'
 #' @return
 #' List that contains:
@@ -467,22 +451,32 @@ pvalue <- function(augsyn){
 #'          \item{"es":}{ Effect Size used for the simulation.}
 #'          \item{"treatment_start_time":}{ Treatment start time for the simulation}
 #'          \item{"investment":}{ Estimated Investment}
+#'          \item{"ScaledL2Imbalance":}{ Scaled L2 Imbalance metric}
 #'         }
 #'
 #' @export
 pvalueCalc <- function(data,
-                       sim,
-                       max_time,
-                       tp,
-                       es,
-                       locations,
+                       sim, #Iterator: Sim number
+                       max_time, #test end
+                       tp, #treatment periods
+                       es, #effect size
+                       locations, #test locations to try out
                        cpic,
-                       X) {
+                       X,
+                       type = "pValue",
+                       normalize = FALSE,
+                       fixed_effects = FALSE,
+                       model = "GSYN") {
 
   treatment_start_time <- max_time - tp - sim + 2
   treatment_end_time <- treatment_start_time + tp - 1
   pre_test_duration <- treatment_start_time - 1
   pre_treatment_start_time <- 1
+
+  if (normalize == TRUE){ # NEWCHANGE: Normalize by the sd
+    factor <- sd(as.matrix(data$Y))
+    data$Y <- data$Y/factor
+  }
 
   data_aux <- fn_treatment(data, locations=locations,
                            treatment_start_time,
@@ -493,32 +487,68 @@ pvalueCalc <- function(data,
 
 
   if (length(X) == 0){
-    pVal <- pvalue(augsynth::augsynth(Y_inc ~ D, unit = location, time = time,
-                            data = data_aux,
-                            t_int = treatment_start_time,
-                            progfunc = "GSYN", scm = T))
+    PowerCalc <- augsynth::augsynth(Y_inc ~ D,
+                                    unit = location,
+                                    time = time,
+                                    data = data_aux,
+                                    t_int = treatment_start_time,
+                                    progfunc = model,
+                                    scm = T,
+                                    fixedeff = fixed_effects)
   }
   else if (length(X) > 0){
     fmla <- as.formula(paste("Y_inc ~ D |",
                              sapply(list(X),
                                     paste, collapse = "+")))
 
-    pVal <- pvalue(augsynth::augsynth(fmla, unit = location, time = time,
-                            data = data_aux,
-                            t_int = treatment_start_time,
-                            progfunc = "GSYN", scm = T))
+    PowerCalc <- augsynth::augsynth(fmla,
+                                    unit = location,
+                                    time = time,
+                                    data = data_aux,
+                                    t_int = treatment_start_time,
+                                    progfunc = "GSYN",
+                                    scm = T,
+                                    fixedeff = fixed_effects)
   }
 
+
+  #NEWCHANGES: Option for quick imbalance-based calcs or p-value
+  if (type == "pValue") {
+    #pVal <- summary(PowerCalc)$average_att$p_val
+
+    wide_data <- PowerCalc$data
+    new_wide_data <- wide_data
+    new_wide_data$X <- cbind(wide_data$X, wide_data$y)
+    new_wide_data$y <- matrix(1, nrow = nrow(wide_data$X), ncol = 1)
+    pVal <- augsynth:::compute_permute_pval(wide_data = new_wide_data,
+                                            ascm = PowerCalc,
+                                            h0 = 0,
+                                            post_length = ncol(wide_data$y),
+                                            type = "iid",
+                                            q = 1,
+                                            ns = 1000)
+    ScaledL2Imbalance <-  PowerCalc$scaled_l2_imbalance
+  }
+  else if (type == "Imbalance") {
+    pVal <- NA
+    ScaledL2Imbalance <- PowerCalc$scaled_l2_imbalance
+  }
+  else {
+    message(paste0("ERROR: Please input a valid type: pValue or Imbalance."))
+    pVal <- NA
+    ScaledL2Imbalance <- NA
+  }
 
   investment <- cpic*sum(data_aux$Y[data_aux$D==1])*(es)
 
   return (
-    c(paste(locations, collapse="; "),
+    c(paste(locations, collapse=", "),
       pVal,
       tp,
       es,
       treatment_start_time,
-      investment)
+      investment,
+      ScaledL2Imbalance)
   )
 }
 
@@ -535,12 +565,17 @@ pvalueCalc <- function(data,
 #' of the time period (starting at 1), and covariates.
 #' @param locations A semi-colon separated list of test geo locations.
 #' @param effect_size A vector of effect sizes to test by default a
-#' sequence between 0 - 15 percent: seq(0,10000,50)/1000.
+#' sequence between 0 - 100 percent in 5 percent increments: seq(0,1,0.05).
 #' @param treatment_periods Expected length of the test. A vector of
 #' possible lengths can be entered for multiple options.
-#' @param horizon Lookback window for the power analysis. For daily
-#' data 30 days are recommended and 8-12 weeks for monthly data.
-#' The default window is 30.
+#' @param horizon An integer that defines at which time-stamp the power simulations
+#' will start. This parameter allows the user to define which period is most relevant
+#' for the test's current in-market dynamics (a very small horizon will include
+#' simulations of time periods with dynamics that might not be relevant anymore).
+#' Ideally the horizon should encompass at least of couple of times the test length.
+#' For instance, for a power analysis with 180 days of historical data and a 15 day
+#' test, we would recommend setting horizon to at least 150. By default horizon is set
+#' to -1 which will  execute the smallest possible horizon with the provided data.
 #' @param cpic Cost Per Incremental Conversion for estimated test
 #' minimum budget. The default value is 0, in which case no investment
 #' estimation will be provided.
@@ -549,6 +584,30 @@ pvalueCalc <- function(data,
 #' @param Y_id Name of the outcome variable. "Y" by default.
 #' @param location_id Name of the location variable. "Y" by default.
 #' @param time_id Name of the time variable. "Y" by default.
+#' @param alpha Significance level. Set to 0.1 by default.
+#' @param type Method of inference used in the analysis.
+#'             pValue=Provides conformal inference to provide the aggregate
+#'             p-value for the null hypothesis of no effect from the intervention.
+#'             The Default type is pValue.
+#'             Imbalance=Uses the model's Scaled L2 Imbalance metric.
+#' @param normalize A logic flag indicating whether to scale the outcome which is
+#' useful to accelerate computing speed when the magnitude of the data is large. The
+#' default is FALSE.
+#' @param model A string indicating the outcome model used to augment the Augmented
+#' Synthetic Control Method. Augmentation through a prognostic function can improve
+#' fit and reduce L2 imbalance metrics.
+#' \itemize{
+#'          \item{"None":}{ ASCM is not augmented by a prognostic function. Defualt.}
+#'          \item{"Ridge":}{ Augments with a Ridge regression. Recommended to improve fit
+#'                           for smaller panels (less than 40 locations and 100 time-stamps.))}
+#'          \item{"GSYN":}{ Augments with a Generalized Synthetic Control Method. Recommended
+#'                          to improve fit for larger panels (more than 40 locations and 100
+#'                          time-stamps. }
+#'          }
+#' @param fixed_effects A logic flag indicating whether to include unit fixed
+#' effects in the model. Set to TRUE by default.
+#' @param ProgressBar A logic flag indicating whether to display a progress bar
+#' to track progress. Set to FALSE by default.
 #'
 #' @return
 #' GeoLiftPower object that contains:
@@ -559,22 +618,30 @@ pvalueCalc <- function(data,
 #'          \item{"effect_size":}{ Effect Size used for the simulation}
 #'          \item{"treatment_start":}{ Treatment start time for the simulation}
 #'          \item{"investment":}{ Estimated Investment}
+#'          \item{"cpipc":}{ Cost Per Incremental Conversion}
+#'          \item{"ScaledL2Imbalance":}{ Scaled L2 Imbalance metric}
 #'      }
 #'
 #' @export
 GeoLiftPower <- function(data,
                          locations,
-                         effect_size = seq(0,10000,50)/1000,
+                         effect_size = seq(0,1,0.05),
                          treatment_periods,
-                         horizon = 30,
+                         horizon = -1,
                          cpic = 0,
                          X = c(),
                          Y_id = "Y",
                          location_id = "location",
-                         time_id = "time"){
+                         time_id = "time",
+                         alpha = 0.1,
+                         type = "pValue",
+                         normalize = FALSE,
+                         model = "none",
+                         fixed_effects = TRUE,
+                         ProgressBar = FALSE){
 
-  cl <- parallel::makeCluster(parallel::detectCores() - 1)
-  registerDoParallel(cl)
+  cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = "sequential") #NEWCHANGE: Return to parallel when bug is fixed
+  doParallel::registerDoParallel(cl)
 
   parallel::clusterCall(cl, function()
     attachNamespace('augsynth'))
@@ -585,7 +652,7 @@ GeoLiftPower <- function(data,
 
   parallel::clusterExport(
     cl,
-    c('fn_treatment','pvalue','pvalueCalc'),
+    c('fn_treatment','pvalueCalc'),
     envir=environment()
   )
 
@@ -599,28 +666,57 @@ GeoLiftPower <- function(data,
                    \nTthe treatment is larger that 80% of all available data."))
   }
 
-  results <- data.frame(matrix(ncol=7,nrow=0))
-  colnames(results) <- c("location","pvalue","duration","lift",
-                         "treatment_start", "investment", "cpic")
+  results <- data.frame(matrix(ncol=8,nrow=0))
+  colnames(results) <- c("location",
+                         "pvalue",
+                         "duration",
+                         "lift",
+                         "treatment_start",
+                         "investment",
+                         "cpic",
+                         "ScaledL2Imbalance")
+
+  if (horizon < 0){ #NEWCHANGE
+    horizon = max(treatment_periods)
+  }
+
+  num_sim <- length(effect_size)*length(treatment_periods)
+
+  if(ProgressBar == TRUE) {
+    pb <- progress::progress_bar$new(format = "  Running Simulations [:bar] :percent",
+                                     total = num_sim,
+                                     clear = FALSE,
+                                     width= 60)
+  }
 
   for (es in effect_size){ #iterate through lift %
     for (tp in treatment_periods){ #lifts
       t_n <- max(data$time) - tp + 1 #Number of simulations without extrapolation
 
-      a <- foreach(sim = 1:(t_n-horizon),
+      if(ProgressBar == TRUE){
+        pb$tick()
+      }
+
+      a <- foreach(sim = 1:(t_n - horizon + 1), #NEWCHANGE: Horizon = earliest start time for simulations
                    .combine=cbind,
                    .errorhandling = 'remove') %dopar% {
                      pvalueCalc(
-                       data,
-                       sim,
-                       max_time,
-                       tp,
-                       es,
-                       locations,
-                       cpic,
-                       X)
+                       data = data,
+                       sim = sim,
+                       max_time = max_time,
+                       tp = tp,
+                       es = es,
+                       locations = locations,
+                       cpic = cpic,
+                       X = c(),
+                       type = type,
+                       normalize = normalize,
+                       fixed_effects = fixed_effects,
+                       model = model)
 
                    }
+
+      #print(a)
 
       for (i in 1:ncol(a)) {
         results <- rbind(results, data.frame(location = a[[1,i]],
@@ -629,14 +725,18 @@ GeoLiftPower <- function(data,
                                              lift = as.numeric(a[[4,i]]),
                                              treatment_start = as.numeric(a[[5,i]]),
                                              investment = as.numeric(a[[6,i]]),
-                                              cpic = cpic ) )
+                                             cpic = cpic,
+                                             ScaledL2Imbalance = as.numeric(a[[7,i]]) ) )
       }
 
     }
   }
 
-  stopCluster(cl)
+  parallel::stopCluster(cl)
   class(results) <- c("GeoLiftPower", class(results))
+
+  results$pow <- 0
+  results$pow[results$pvalue < alpha] <- 1
 
   return(results)
 }
@@ -646,12 +746,14 @@ GeoLiftPower <- function(data,
 #'
 #' @description
 #'
-#' Plotting functoin for \code{GeoLiftPower}.
+#' Plotting function for \code{GeoLiftPower}. The function smooths the power curve
+#' for ease of interpretation.
 #'
 #' @param x GeoLiftPower object.
 #' @param power Power level. By default 0.8.
-#' @param conf.level Confidence level. By default 0.9.
 #' @param table Plot the table of power estimates. TRUE by default.
+#' @param actual_values Logic flag indicating whether to include in the plot
+#' the actual values in addition to the smoothed values.
 #' @param ... additional arguments
 #'
 #' @return
@@ -659,9 +761,10 @@ GeoLiftPower <- function(data,
 #'
 #' @export
 plot.GeoLiftPower <- function(x,
-                              power=0.8,
-                              conf.level = 0.9,
-                              table = TRUE, ...) {
+                              power = 0.8,
+                              table = TRUE,
+                              actual_values = FALSE,
+                              ...) {
 
   if (!inherits(x, 'GeoLiftPower')) {
     stop('object must be class GeoLiftPower')
@@ -670,55 +773,114 @@ plot.GeoLiftPower <- function(x,
   treatment_periods <- unique(x$duration)
   lift <- unique(x$lift)
 
-
-  resultsM <- matrix(0,nrow = length(treatment_periods), ncol=length(lift),
-                     dimnames=list("Treatment Periods" = treatment_periods, "Lift" = lift))
-
-  for (duration in rownames(resultsM)){
-    for (lifts in colnames(resultsM)){
-      resultsM[[duration, lifts]] <- round(nrow(x[x$pvalue < 1 - conf.level &
-                                                    x$duration == as.numeric(duration) &
-                                                    x$lift == as.numeric(lifts),]) /
-                                             nrow(x[x$duration == as.numeric(duration) &
-                                                      x$lift == as.numeric(lifts),]),5)
-    }
-  }
+  #NewChange: Standardize Plots
+  PowerPlot <- x %>%
+    dplyr::group_by(duration, lift) %>%
+    #dplyr::mutate(power = 1 - pvalue) %>%
+    #dplyr::summarise(power = mean(power))
+    dplyr::summarise(power = mean(pow))
 
   spending <- x %>% dplyr::group_by(duration, lift) %>% dplyr::summarize(inv = mean(investment))
 
   if (table == TRUE){
-    print(t(resultsM))
+    print(as.data.frame(PowerPlot))
   }
 
-  #print(str(resultsM))
-  #resultsM<- cbind(resultsM,
-  #                 matrix(0,nrow = length(treatment_periods), ncol=1,
-  #                        dimnames=list("Treatment Periods" = treatment_periods, "Lift" = -1)))
 
-  #print(resultsM)
-  #print(str(resultsM))
-  #lift <- c(-1,lift)
-  if (sum(spending$inv > 0)) {
-    for(tp in 1:nrow(resultsM)){
-      par(mar = c(5, 5, 10, 5))
-      #print(lift)
-      #print(resultsM[tp,])
-      scatter.smooth(lift, resultsM[tp,],span=0.5, type="n", ylim = c(0,1),
-                     xlab="Effect Size", ylab="Power",  lpars = list(col = "red", lwd = 3),
-                     main=c("Treatment Periods: ",as.character(rownames(resultsM)[tp]), "\n investment"))
-      abline(h = power)
-      par(new=TRUE)
-      plot((spending %>% dplyr::filter(duration == rownames(resultsM)[tp]))$inv, resultsM[tp,], type="n", xaxt = "n", yaxt = "n", ylab = "", xlab = "")
-      axis(side=3)
+  if(actual_values == FALSE){
+
+    if (sum(spending$inv > 0)) {
+
+      for(dur in unique(PowerPlot$duration)){
+
+        PowerPlot_aux <- as.data.frame(PowerPlot %>% dplyr::filter(duration == dur))
+
+        CostPerLift <- as.numeric(x %>%
+                                    dplyr::filter(duration == dur, lift > 0) %>%
+                                    dplyr::mutate(AvgCost = investment / lift) %>%
+                                    dplyr::summarise(mean(AvgCost)))
+
+        PowerPlot_graph <- ggplot(PowerPlot_aux, aes(x = lift, y = power)) +
+          geom_smooth(formula = y ~ x, color = "indianred3", method = "loess", se = FALSE)  +
+          scale_x_continuous(sec.axis = sec_axis(~. *CostPerLift, name = "Estimated Investment"))  +
+          ylim(0,1) +
+          geom_hline(yintercept = 0.8, linetype = "dashed", color = "grey") +
+          labs(title = paste0("Treatment Periods: ", dur), x = "Effect Size", y = "Power") +
+          theme_minimal() +
+          theme(plot.title = element_text(hjust = 0.5))
+
+
+        plot(PowerPlot_graph)
+      }
+
+    } else {
+
+      for(dur in unique(PowerPlot$duration)){
+
+        PowerPlot_aux <- as.data.frame(PowerPlot %>% dplyr::filter(duration == dur))
+
+        PowerPlot_graph <- ggplot(PowerPlot_aux, aes(x = lift, y = power)) +
+          geom_smooth(formula = y ~ x, color = "indianred3", method = "loess", se = FALSE)  +
+          ylim(0,1) +
+          geom_hline(yintercept = 0.8, linetype = "dashed", color = "grey") +
+          labs(title = paste0("Treatment Periods: ", dur), x = "Effect Size", y = "Power") +
+          theme_minimal() +
+          theme(plot.title = element_text(hjust = 0.5))
+
+
+        plot(PowerPlot_graph)
+      }
+
     }
 
-  } else {
-    for(tp in 1:nrow(resultsM)){
-      scatter.smooth(lift, resultsM[tp,],span=0.5, type="n", ylim = c(0,1),
-                     xlab="Effect Size", ylab="Power",  lpars = list(col = "red", lwd = 3),
-                     main=c("Treatment Periods: ",as.character(rownames(resultsM)[tp])))
-      abline(h = power)
+  } else if(actual_values == TRUE){
+
+    if (sum(spending$inv > 0)) {
+
+      for(dur in unique(PowerPlot$duration)){
+
+        PowerPlot_aux <- as.data.frame(PowerPlot %>% dplyr::filter(duration == dur))
+
+        CostPerLift <- as.numeric(x %>%
+                                    dplyr::filter(duration == dur, lift > 0) %>%
+                                    dplyr::mutate(AvgCost = investment / lift) %>%
+                                    dplyr::summarise(mean(AvgCost)))
+
+        PowerPlot_graph <- ggplot(PowerPlot_aux, aes(x = lift, y = power)) +
+          geom_smooth(formula = y ~ x, color = "indianred3", method = "loess", se = FALSE)  +
+          geom_line(color="gray80", size = 0.62, alpha = 0.8) +
+          scale_x_continuous(sec.axis = sec_axis(~. *CostPerLift, name = "Estimated Investment"))  +
+          ylim(0,1) +
+          geom_hline(yintercept = 0.8, linetype = "dashed", color = "grey") +
+          labs(title = paste0("Treatment Periods: ", dur), x = "Effect Size", y = "Power") +
+          theme_minimal() +
+          theme(plot.title = element_text(hjust = 0.5))
+
+
+        plot(PowerPlot_graph)
+      }
+
+    } else {
+
+      for(dur in unique(PowerPlot$duration)){
+
+        PowerPlot_aux <- as.data.frame(PowerPlot %>% dplyr::filter(duration == dur))
+
+        PowerPlot_graph <- ggplot(PowerPlot_aux, aes(x = lift, y = power)) +
+          geom_smooth(formula = y ~ x, color = "indianred3", method = "loess", se = FALSE)  +
+          geom_line(color="gray80", size = 0.62, alpha = 0.8) +
+          ylim(0,1) +
+          geom_hline(yintercept = 0.8, linetype = "dashed", color = "grey") +
+          labs(title = paste0("Treatment Periods: ", dur), x = "Effect Size", y = "Power") +
+          theme_minimal() +
+          theme(plot.title = element_text(hjust = 0.5))
+
+
+        plot(PowerPlot_graph)
+      }
+
     }
+
   }
 
 }
@@ -747,7 +909,30 @@ plot.GeoLiftPower <- function(x,
 #' @param time_id Name of the time variable (String).
 #' @param plot Plots results when TRUE.
 #' @param power Power level. By default 0.8.
-#' @param conf.level Confidence level. By default 0.9.
+#' @param alpha Significance Level. By default 0.1.
+#' @param type Method of inference used in the analysis.
+#'             pValue=Provides conformal inference to provide the aggregate
+#'             p-value for the null hypothesis of no effect from the intervention.
+#'             The Default type is pValue.
+#'             Imbalance=Uses the model's Scaled L2 Imbalance metric.
+#' @param normalize A logic flag indicating whether to scale the outcome which is
+#' useful to accelerate computing speed when the magnitude of the data is large. The
+#' default is FALSE.
+#' @param model A string indicating the outcome model used to augment the Augmented
+#' Synthetic Control Method. Augmentation through a prognostic function can improve
+#' fit and reduce L2 imbalance metrics.
+#' \itemize{
+#'          \item{"None":}{ ASCM is not augmented by a prognostic function. Defualt.}
+#'          \item{"Ridge":}{ Augments with a Ridge regression. Recommended to improve fit
+#'                           for smaller panels (less than 40 locations and 100 time-stamps.))}
+#'          \item{"GSYN":}{ Augments with a Generalized Synthetic Control Method. Recommended
+#'                          to improve fit for larger panels (more than 40 locations and 100
+#'                          time-stamps. }
+#'          }
+#' @param fixed_effects A logic flag indicating whether to include unit fixed
+#' effects in the model. Set to TRUE by default.
+#' @param ProgressBar A logic flag indicating whether to display a progress bar
+#' to track progress. Set to FALSE by default.
 #'
 #' @return
 #' Table of average power by number of locations.
@@ -763,10 +948,15 @@ NumberLocations <- function(data,
                             time_id = "time",
                             plot = TRUE,
                             power = 0.8,
-                            conf.level = 0.9){
+                            alpha = 0.1,
+                            type = "pValue",
+                            normalize = FALSE,
+                            model = "none",
+                            fixed_effects = TRUE,
+                            ProgressBar = FALSE){
 
-  cl <- parallel::makeCluster(parallel::detectCores() - 1)
-  registerDoParallel(cl)
+  cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = "sequential") #NEWCHANGE: Return to parallel when bug is fixed
+  doParallel::registerDoParallel(cl)
 
   parallel::clusterCall(cl, function()
     attachNamespace('augsynth'))
@@ -777,7 +967,7 @@ NumberLocations <- function(data,
 
   parallel::clusterExport(
     cl,
-    c('fn_treatment','pvalue','pvalueCalc'),
+    c('fn_treatment','pvalueCalc'),
     envir=environment()
   )
 
@@ -794,57 +984,113 @@ NumberLocations <- function(data,
 
   #times <- trunc(quantile(data$time, probs = c(0.5, 0.75, 1), names = FALSE ))
 
-  results <- data.frame(matrix(ncol=4, nrow=0))
-  colnames(results) <- c("location","pvalue", "n", "treatment_start")
+  results <- data.frame(matrix(ncol=5, nrow=0)) #NEWCHANGE: Add Imbalance
+  colnames(results) <- c("location","pvalue", "n", "treatment_start", "ScaledL2Imbalance")
 
   if (length(number_locations) == 0) {
-    number_locations <- round(quantile(c(1:length(unique(data$location))),
-                                       probs = seq(0,0.5,0.05), names = FALSE))
+    number_locations <- unique(round(quantile(c(1:length(unique(data$location))),
+                                              probs = seq(0,0.5,0.05),
+                                              type = 1,
+                                              names = FALSE)))
+  }
+
+  num_sim <- length(number_locations)
+
+  if(ProgressBar == TRUE) {
+    pb <- progress::progress_bar$new(format = "  Running Simulations [:bar] :percent",
+                                     total = num_sim,
+                                     clear = FALSE,
+                                     width= 60)
   }
 
   for(n in number_locations){
     #for (t in times){
 
-      a <- foreach(sim = 1:n_sim,
-                   .combine=cbind,
-                   .errorhandling = 'remove') %dopar% {
-                     pvalueCalc(
-                       data = data,
-                       sim = 1,
-                       max_time = max_time,#max_time,
-                       tp = treatment_periods,
-                       es = 0,
-                       locations = as.list(sample(locs,n, replace = FALSE )),
-                       cpic = 0,
-                       X = c())
+    if(ProgressBar == TRUE){
+      pb$tick()
+    }
 
-                   }
+    a <- foreach(sim = 1:n_sim,
+                 .combine=cbind,
+                 .errorhandling = 'remove') %dopar% {
+                   pvalueCalc(
+                     data = data,
+                     sim = 1,
+                     max_time = max_time,#max_time,
+                     tp = treatment_periods,
+                     es = 0,
+                     locations = as.list(sample(locs,n, replace = FALSE )),
+                     cpic = 0,
+                     X = c(),
+                     type = type,
+                     normalize = normalize,
+                     fixed_effects = fixed_effects,
+                     model = model)
 
-      for (i in 1:ncol(a)) {
-        results <- rbind(results, data.frame(location = a[[1,i]],
-                                             pvalue = as.numeric(a[[2,i]]),
-                                             n = n,
-                                             treatment_start = as.numeric(a[[5,i]]) ) )
-        }
+                 }
+
+    for (i in 1:ncol(a)) {
+      results <- rbind(results, data.frame(location = a[[1,i]],
+                                           pvalue = as.numeric(a[[2,i]]),
+                                           n = n,
+                                           treatment_start = as.numeric(a[[5,i]]),
+                                           ScaledL2Imbalance = as.numeric(a[[7,i]]) ) )
+    }
     #}
   }
 
-  stopCluster(cl)
+  parallel::stopCluster(cl)
 
   if(plot == TRUE){
     results$pow <- 0
-    results$pow[results$pvalue > 1 - conf.level] <- 1
+    results$pow[results$pvalue > alpha] <- 1
 
-    resultsM <- results %>% dplyr::group_by(n) %>%  dplyr::summarize(mean_pow = mean(pow))
-    resultsM <- tibble::add_row(resultsM, n = 0, mean_pow = 0, .before = 1)
+    resultsM <- results %>% dplyr::group_by(n) %>%  dplyr::summarize(mean_pow = mean(pow), mean_L2ScaledImbalance = mean(ScaledL2Imbalance))
+    resultsM <- tibble::add_row(resultsM, n = 0, mean_pow = 0, mean_L2ScaledImbalance = 1, .before = 1)
 
-    print(" Average Power By Number of Locations")
-    print(resultsM)
+    #print("Average Power By Number of Locations")
+    #print(resultsM)
 
-    plot(resultsM, type = "l", col = "red", lwd = 3,
-         main="Power Calculation by Number of Locations",
-         ylab="Power", xlab="Number of Test locations")
-    abline(h = power)
+    if(type == "pValue") {
+
+      print("Average Power By Number of Locations")
+      print(resultsM)
+
+      powerplot <- ggplot(resultsM,aes(y = mean_pow,x = n)) +
+        geom_line(color="indianred3", size = 0.95) +
+        ylim(0,1) +
+        ggtitle("Average Power By Number of Locations") +
+        xlab("Number of Locations") +
+        ylab("Average Power") +
+        geom_hline(yintercept = 0.8, linetype = "dashed", color = "grey") +
+        theme_minimal()
+
+      imbalanceplot <- ggplot(resultsM,aes(y = mean_L2ScaledImbalance,x = n)) +
+        geom_line(color="steelblue4", size = 0.95) +
+        ylim(0,1) +
+        ggtitle("Average Scaled L2 Imbalance By Number of Locations") +
+        xlab("Number of Locations") +
+        ylab("Average Scaled L2 Imbalance") +
+        theme_minimal()
+
+      gridExtra::grid.arrange(powerplot,imbalanceplot, nrow = 1)
+
+    } else if (type == "Imbalance") {
+
+      print("Average Scaled L2 Imbalance By Number of Locations")
+      print(resultsM[,-2])
+
+      imbalanceplot <- ggplot(resultsM,aes(y = mean_L2ScaledImbalance,x = n)) +
+        geom_line(color="steelblue4", size = 0.95) +
+        ylim(0,1) +
+        ggtitle("Average Scaled L2 Imbalance By Number of Locations") +
+        xlab("Number of Locations") +
+        ylab("Average Scaled L2 Imbalance") +
+        theme_minimal()
+      plot(imbalanceplot)
+    }
+
+
   }
 
   return(results)
@@ -866,6 +1112,8 @@ NumberLocations <- function(data,
 #' @param location_id Name of the location variable (String).
 #' @param time_id Name of the time variable (String).
 #' @param Y_id Name of the outcome variable (String).
+#' @param dtw Emphasis on Dynamic Time Warping (DTW), dtw = 1 focuses exclusively
+#' on this metric while dtw = 0 (default) relies on correlations only.
 #'
 #' @return
 #' Matrix of the best markets. The second to last columns show
@@ -876,27 +1124,31 @@ NumberLocations <- function(data,
 MarketSelection <- function(data,
                             location_id = "location",
                             time_id = "time",
-                            Y_id = "Y"){
+                            Y_id = "Y",
+                            dtw = 0){
 
   data <- data %>% dplyr::rename(Y = paste(Y_id), location = paste(location_id), time = paste(time_id))
   data$location <- tolower(data$location)
+  astime <- seq(as.Date("2000/1/1"), by = "day", length.out = max(data$time))
+  data$astime <- astime[data$time]
+
 
   # Find the best matches based on DTW
   mm <- MarketMatching::best_matches( data = data,
-                      id_variable = "location",
-                      date_variable = "time",
-                      matching_variable = "Y",
-                      parallel = TRUE,
-                      warping_limit = 1,
-                      start_match_period = 1,
-                      end_match_period = max(data$time),
-                      matches = length(unique(data$location)) - 1,
-                      dtw_emphasis = 1 )
+                                      id_variable = "location",
+                                      date_variable = "astime",
+                                      matching_variable = "Y",
+                                      parallel = TRUE,
+                                      warping_limit = 1,
+                                      dtw_emphasis = dtw,
+                                      start_match_period = min(data$astime),
+                                      end_match_period = max(data$astime),
+                                      matches = length(unique(data$location)) - 1)
 
   # Create a matrix with each row being the raked best controls for each location
   best_controls <- mm$BestMatches %>% tidyr::pivot_wider(id_cols = location,
-                                                  names_from = rank,
-                                                  values_from = BestControl)
+                                                         names_from = rank,
+                                                         values_from = BestControl)
 
   best_controls <- as.matrix(best_controls)
   colnames(best_controls) <- NULL
@@ -920,14 +1172,45 @@ MarketSelection <- function(data,
 #' of the time period (starting at 1), and covariates.
 #' @param treatment_periods List of treatment periods to calculate power for.
 #' @param N List of number of test markets to calculate power for.
-#' @param horizon Lookback window for the power analysis. For daily
-#' data 30 days are recommended and 8-12 weeks for monthly data.
-#' The default window is 30.
+#' @param horizon An integer that defines at which time-stamp the power simulations
+#' will start. This parameter allows the user to define which period is most relevant
+#' for the test's current in-market dynamics (a very small horizon will include
+#' simulations of time periods with dynamics that might not be relevant anymore).
+#' Ideally the horizon should encompass at least of couple of times the test length.
+#' For instance, for a power analysis with 180 days of historical data and a 15 day
+#' test, we would recommend setting horizon to at least 150. By default horizon is set
+#' to -1 which will  execute the smallest possible horizon with the provided data.
 #' @param X List of names of covariates.
 #' @param Y_id Name of the outcome variable (String).
 #' @param location_id Name of the location variable (String).
 #' @param time_id Name of the time variable (String).
-#' @param top_results Number of results to display
+#' @param top_results Number of results to display.
+#' @param alpha Significance Level. By default 0.1.
+#' @param type Method of inference used in the analysis.
+#'             pValue=Provides conformal inference to provide the aggregate
+#'             p-value for the null hypothesis of no effect from the intervention.
+#'             The Default type is pValue.
+#'             Imbalance=Uses the model's Scaled L2 Imbalance metric.
+#' @param normalize A logic flag indicating whether to scale the outcome which is
+#' useful to accelerate computing speed when the magnitude of the data is large. The
+#' default is FALSE.
+#' @param model A string indicating the outcome model used to augment the Augmented
+#' Synthetic Control Method. Augmentation through a prognostic function can improve
+#' fit and reduce L2 imbalance metrics.
+#' \itemize{
+#'          \item{"None":}{ ASCM is not augmented by a prognostic function. Defualt.}
+#'          \item{"Ridge":}{ Augments with a Ridge regression. Recommended to improve fit
+#'                           for smaller panels (less than 40 locations and 100 time-stamps.))}
+#'          \item{"GSYN":}{ Augments with a Generalized Synthetic Control Method. Recommended
+#'                          to improve fit for larger panels (more than 40 locations and 100
+#'                          time-stamps. }
+#'          }
+#' @param fixed_effects A logic flag indicating whether to include unit fixed
+#' effects in the model. Set to TRUE by default.
+#' @param dtw Emphasis on Dynamic Time Warping (DTW), dtw = 1 focuses exclusively
+#' on this metric while dtw = 0 (default) relies on correlations only.
+#' @param ProgressBar A logic flag indicating whether to display a progress bar
+#' to track progress. Set to FALSE by default.
 #'
 #' @return
 #' Data frame with the ordered list of best locations and their
@@ -937,15 +1220,22 @@ MarketSelection <- function(data,
 GeoLiftPower.search <- function(data,
                                 treatment_periods,
                                 N = 1,
-                                horizon = 30,
+                                horizon = -1,
                                 X = c(),
-                                Y_id = "Units",
+                                Y_id = "Y",
                                 location_id = "location",
                                 time_id = "time",
-                                top_results = 5){
+                                top_results = 5,
+                                alpha = 0.1,
+                                type = "pValue",
+                                normalize = FALSE,
+                                model = "none",
+                                fixed_effects = TRUE,
+                                dtw = 0,
+                                ProgressBar = FALSE){
 
-  cl <- parallel::makeCluster(parallel::detectCores() - 1)
-  registerDoParallel(cl)
+  cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = "sequential") #NEWCHANGE: Return to parallel when bug is fixed
+  doParallel::registerDoParallel(cl)
 
   parallel::clusterCall(cl, function()
     attachNamespace('augsynth'))
@@ -956,7 +1246,7 @@ GeoLiftPower.search <- function(data,
 
   parallel::clusterExport(
     cl,
-    c('fn_treatment','pvalue','pvalueCalc', 'MarketSelection'),
+    c('fn_treatment','pvalueCalc', 'MarketSelection'),
     envir=environment()
   )
 
@@ -970,30 +1260,64 @@ GeoLiftPower.search <- function(data,
                    \nTthe treatment is larger that 80% of all available data."))
   }
 
-  results <- data.frame(matrix(ncol=4,nrow=0))
-  colnames(results) <- c("location","pvalue","duration",
-                         "treatment_start")
+  results <- data.frame(matrix(ncol=5,nrow=0))
+  colnames(results) <- c("location",
+                         "pvalue",
+                         "duration",
+                         "treatment_start",
+                         "ScaledL2Imbalance")
 
-  BestMarkets <- MarketSelection(data, location_id = "location", time_id = "time", Y_id = "Y")
+  BestMarkets <- MarketSelection(data,
+                                 location_id = "location",
+                                 time_id = "time",
+                                 Y_id = "Y",
+                                 dtw = dtw)
+
+  if (horizon < 0){ #NEWCHANGE
+    horizon = max(treatment_periods)
+  }
+
+  # Aggregated Y Per Location
+  AggYperLoc <- data %>%
+    dplyr::group_by(location) %>%
+    dplyr::summarize(Total_Y = sum(Y))
+
+  #NEWCHANGE: Progress Bar
+  num_sim <- length(N) * length(treatment_periods) * nrow(BestMarkets)
+  if(ProgressBar == TRUE) {
+    pb <- progress::progress_bar$new(format = "  Running Simulations [:bar] :percent",
+                                     total = num_sim,
+                                     clear = FALSE,
+                                     width= 60)
+  }
 
   for (n in N){
     BestMarkets_aux <- BestMarkets[,1:n]
     for (test in 1:nrow(BestMarkets_aux)){ #iterate through lift %
       for (tp in treatment_periods){ #lifts
-        t_n <- max(data$time) - tp + 1 #Number of simulations without extrapolation
 
-        a <- foreach(sim = 1:(t_n-horizon),
+        if(ProgressBar == TRUE){
+          pb$tick()
+        }
+
+        t_n <- max(data$time) - tp + 1 #Number of simulations without extrapolation (latest start time possible for #tp)
+
+        a <- foreach(sim = 1:(t_n - horizon + 1), #NEWCHANGE: Horizon = earliest start time for simulations
                      .combine=cbind,
                      .errorhandling = 'remove') %dopar% {
                        pvalueCalc(
-                         data,
-                         sim,
-                         max_time,
-                         tp,
+                         data = data,
+                         sim = sim,
+                         max_time = max_time,
+                         tp = tp,
                          es = 0,
                          locations = as.list(BestMarkets_aux[test,]),
                          cpic = 0,
-                         X)
+                         X,
+                         type = type,
+                         normalize = normalize,
+                         fixed_effects = fixed_effects,
+                         model = model)
 
                      }
 
@@ -1001,7 +1325,8 @@ GeoLiftPower.search <- function(data,
           results <- rbind(results, data.frame(location=a[[1,i]],
                                                pvalue = as.numeric(a[[2,i]]),
                                                duration = as.numeric(a[[3,i]]),
-                                               treatment_start = as.numeric(a[[5,i]]) ) )
+                                               treatment_start = as.numeric(a[[5,i]]),
+                                               ScaledL2Imbalance = as.numeric(a[[7,i]]) ) )
         }
 
 
@@ -1009,12 +1334,66 @@ GeoLiftPower.search <- function(data,
     }
   }
 
-  resultsM <- results %>%
-    dplyr::group_by(location) %>%
-    dplyr::summarize(mean_p = mean(pvalue)) %>%
-    dplyr::arrange(desc(mean_p))
+  parallel::stopCluster(cl)
 
-  stopCluster(cl)
+  # Sort Locations alphabetically
+  results$location <- strsplit(str_replace_all(results$location, ", ", ","),split = ",")
+  results$location <- lapply(results$location, sort)
+  results$location <- lapply(results$location, function(x) paste(x, collapse = ", "))
+  results$location <- unlist(results$location)
+
+  if(type == "pValue") {
+
+    results$pow <- 0
+    results$pow[results$pvalue > alpha] <- 1
+
+    resultsM <- results %>%
+      dplyr::group_by(location) %>%
+      dplyr::summarize(mean_pow = mean(pow), mean_scaled_l2_imbalance = mean(ScaledL2Imbalance)) %>%
+      #dplyr::arrange(dplyr::desc(mean_pow)) %>%
+      dplyr::distinct()
+
+  } else if (type == "Imbalance") {
+
+    resultsM <- results %>%
+      dplyr::group_by(location) %>%
+      dplyr::summarize(mean_scaled_l2_imbalance = mean(ScaledL2Imbalance)) %>%
+      #dplyr::arrange(mean_scaled_l2_imbalance) %>%
+      dplyr::distinct()
+
+  }
+
+  # Add Percent of Y in test markets
+  resultsM$ProportionTotal_Y <- 1
+  resultsM$Locs <- strsplit(str_replace_all(resultsM$location, ", ", ","),split = ",")
+
+  for (row in 1:nrow(resultsM)) {
+    resultsM$ProportionTotal_Y[row] <- as.numeric(AggYperLoc %>%
+                                                    dplyr::filter (location %in% resultsM$Locs[[row]]) %>%
+                                                    dplyr::summarize(total = sum(Total_Y))) /
+      sum(AggYperLoc$Total_Y)
+  }
+
+  # Sort Before Ranking
+  if(type == "pValue") {
+
+    resultsM <- resultsM %>%
+      dplyr::arrange(dplyr::desc(mean_pow),
+                     mean_scaled_l2_imbalance,
+                     dply::desc(ProportionTotal_Y))
+
+  } else if (type == "Imbalance") {
+
+    resultsM <- resultsM %>%
+      dplyr::arrange(mean_scaled_l2_imbalance,
+                     dply::desc(ProportionTotal_Y))
+
+  }
+
+
+  #Remove the Locs column
+  resultsM <- dplyr::select (resultsM, -c(Locs))
+
   class(results) <- c("GeoLift.search", class(resultsM))
 
   resultsM$rank <- 1:nrow(resultsM)
@@ -1023,10 +1402,306 @@ GeoLiftPower.search <- function(data,
     top_results = nrow(resultsM)
   }
 
-  print(paste0("Best ", top_results, "controls:"))
+  print(paste0("Best ", top_results, " test markets:"))
   print(head(resultsM[,1], top_results))
 
-  return(resultsM)
+
+  return(as.data.frame(resultsM))
+
+}
+
+
+#' Power calculations for unknown test market locations, number of
+#' test markets, and test duration.
+#'
+#' @description
+#'
+#' \code{GeoLiftPowerFinder} provides power calculations for unknown
+#' test markets, number of test locations, and test duration.
+#'
+#' @param data A data.frame containing the historical conversions by
+#' geographic unit, It requires a "locations" column with the geo name,
+#' a "Y" column with the outcome data (units), a time column with the indicator
+#' of the time period (starting at 1), and covariates.
+#' @param treatment_periods List of treatment periods to calculate power for.
+#' @param N List of number of test markets to calculate power for.
+#' @param X List of names of covariates.
+#' @param Y_id Name of the outcome variable (String).
+#' @param location_id Name of the location variable (String).
+#' @param time_id Name of the time variable (String).
+#' @param effect_size A vector of effect sizes to test by default a
+#' sequence between 0 - 25 percent in 5 percent increments: seq(0,0.25,0.05).
+#' Only input sequences that are entirely positive or negative.
+#' @param top_results Number of results to display.
+#' @param alpha Significance Level. By default 0.1.
+#' @param normalize A logic flag indicating whether to scale the outcome which is
+#' useful to accelerate computing speed when the magnitude of the data is large. The
+#' default is FALSE.
+#' @param model A string indicating the outcome model used to augment the Augmented
+#' Synthetic Control Method. Augmentation through a prognostic function can improve
+#' fit and reduce L2 imbalance metrics.
+#' \itemize{
+#'          \item{"None":}{ ASCM is not augmented by a prognostic function. Defualt.}
+#'          \item{"Ridge":}{ Augments with a Ridge regression. Recommended to improve fit
+#'                           for smaller panels (less than 40 locations and 100 time-stamps.))}
+#'          \item{"GSYN":}{ Augments with a Generalized Synthetic Control Method. Recommended
+#'                          to improve fit for larger panels (more than 40 locations and 100
+#'                          time-stamps. }
+#'          }
+#' @param fixed_effects A logic flag indicating whether to include unit fixed
+#' effects in the model. Set to TRUE by default.
+#' @param dtw Emphasis on Dynamic Time Warping (DTW), dtw = 1 focuses exclusively
+#' on this metric while dtw = 0 (default) relies on correlations only.
+#' @param ProgressBar A logic flag indicating whether to display a progress bar
+#' to track progress. Set to FALSE by default.
+#' @param plot_best A logic flag indicating whether to plot the best 4 tests for
+#' each treatment length. Set to FALSE by default.
+#'
+#' @return
+#' Data frame with the ordered list of best locations and their
+#' average power.
+#'
+#' @export
+GeoLiftPowerFinder <- function(data,
+                               treatment_periods,
+                               N = 1,
+                               X = c(),
+                               Y_id = "Y",
+                               location_id = "location",
+                               time_id = "time",
+                               effect_size = seq(0,0.25,0.05),
+                               top_results = 5,
+                               alpha = 0.1,
+                               normalize = FALSE,
+                               model = "none",
+                               fixed_effects = TRUE,
+                               dtw = 0,
+                               ProgressBar = FALSE,
+                               plot_best = FALSE){
+
+  cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = "sequential") #NEWCHANGE: Return to parallel when bug is fixed
+  doParallel::registerDoParallel(cl)
+
+  parallel::clusterCall(cl, function()
+    attachNamespace('augsynth'))
+  parallel::clusterCall(cl, function()
+    attachNamespace('dplyr'))
+  parallel::clusterCall(cl, function()
+    attachNamespace('tidyr'))
+
+  parallel::clusterExport(
+    cl,
+    c('fn_treatment','pvalueCalc', 'MarketSelection'),
+    envir=environment()
+  )
+
+  # Part 1: Treatment and pre-treatment periods
+  data <- data %>% dplyr::rename(Y = paste(Y_id), location = paste(location_id), time = paste(time_id))
+  max_time <- max(data$time)
+  data$location <- tolower(data$location)
+
+  if (max(treatment_periods)/max_time > 0.8){
+    message(paste0("Warning: Small pre-treatment period.
+                   \nTthe treatment is larger that 80% of all available data."))
+  }
+
+  results <- data.frame(matrix(ncol=6,nrow=0))
+  colnames(results) <- c("location",
+                         "pvalue",
+                         "duration",
+                         "lift",
+                         "treatment_start",
+                         "ScaledL2Imbalance")
+
+
+  BestMarkets <- MarketSelection(data,
+                                 location_id = "location",
+                                 time_id = "time",
+                                 Y_id = "Y",
+                                 dtw = dtw)
+
+  # Aggregated Y Per Location
+  AggYperLoc <- data %>%
+    dplyr::group_by(location) %>%
+    dplyr::summarize(Total_Y = sum(Y))
+
+  #NEWCHANGE: Progress Bar
+  num_sim <- length(N) * length(treatment_periods) * length(effect_size)
+  if(ProgressBar == TRUE) {
+    pb <- progress::progress_bar$new(format = "  Running Simulations [:bar] :percent",
+                                     total = num_sim,
+                                     clear = FALSE,
+                                     width= 60)
+  }
+
+
+
+  for (n in N){
+    BestMarkets_aux <- BestMarkets[,1:n]
+    for (es in effect_size){ #iterate through lift %
+      for (tp in treatment_periods){ #lifts
+
+        if(ProgressBar == TRUE){
+          pb$tick()
+        }
+
+        a <- foreach(test = 1:nrow(BestMarkets_aux), #NEWCHANGE: Horizon = earliest start time for simulations
+                     .combine=cbind,
+                     .errorhandling = 'remove') %dopar% {
+                       pvalueCalc(
+                         data = data,
+                         sim = 1,
+                         max_time = max_time,
+                         tp = tp,
+                         es = es,
+                         locations = as.list(BestMarkets_aux[test,]),
+                         cpic = 0,
+                         X,
+                         type = "pValue",
+                         normalize = normalize,
+                         fixed_effects = fixed_effects,
+                         model = model)
+
+                     }
+
+        for (i in 1:ncol(a)) {
+          results <- rbind(results, data.frame(location = a[[1,i]],
+                                               pvalue = as.numeric(a[[2,i]]),
+                                               duration = as.numeric(a[[3,i]]),
+                                               lift = as.numeric(a[[4,i]]),
+                                               treatment_start = as.numeric(a[[5,i]]),
+                                               ScaledL2Imbalance = as.numeric(a[[7,i]]) ) )
+        }
+
+
+      }
+    }
+  }
+
+  parallel::stopCluster(cl)
+
+  # Sort Locations alphabetically
+  results$location <- strsplit(str_replace_all(results$location, ", ", ","),split = ",")
+  results$location <- lapply(results$location, sort)
+  results$location <- lapply(results$location, function(x) paste(x, collapse = ", "))
+  results$location <- unlist(results$location)
+
+  results <- results %>%
+    dplyr::mutate(significant = ifelse(pvalue < alpha, 1, 0)) %>%
+    #dplyr::filter(significant > 0 & lift > 0) %>%
+    dplyr::filter(significant > 0) %>%
+    dplyr::distinct()
+
+  resultsM <- NULL
+
+
+  for (locs in unique(results$location)){
+    for(ts in treatment_periods) {
+      resultsFindAux <- results %>% dplyr::filter(location  == locs & duration == ts)
+
+      if ( min(effect_size) < 0){
+        resultsFindAux <- resultsFindAux %>% dplyr::filter(lift != 0)
+        MDEAux <- suppressWarnings(max(resultsFindAux$lift))
+        resultsFindAux <- resultsFindAux %>% dplyr::filter(lift == MDEAux)
+
+      } else {
+        MDEAux <- suppressWarnings(min(resultsFindAux$lift))
+        resultsFindAux <- resultsFindAux %>% dplyr::filter(lift == MDEAux)
+      }
+
+      if (MDEAux != 0) { # Drop tests significant with ES = 0
+        resultsM <- resultsM %>% dplyr::bind_rows(resultsFindAux)
+      }
+    }
+  }
+
+  # Add Percent of Y in test markets
+  resultsM$ProportionTotal_Y <- 1
+  resultsM$Locs <- strsplit(str_replace_all(resultsM$location, ", ", ","),split = ",")
+
+  for (row in 1:nrow(resultsM)) {
+    resultsM$ProportionTotal_Y[row] <- as.numeric(AggYperLoc %>%
+                                                    dplyr::filter (location %in% resultsM$Locs[[row]]) %>%
+                                                    dplyr::summarize(total = sum(Total_Y))) /
+      sum(AggYperLoc$Total_Y)
+  }
+
+  # Remove any duplicates
+  resultsM <- resultsM %>% dplyr::group_by(location, duration) %>% dplyr::slice_min(order_by = pvalue, n = 1)
+
+  # Sort Before Ranking
+
+  resultsM <- resultsM %>%
+    dplyr::arrange(pvalue,
+                   ScaledL2Imbalance,
+                   lift,
+                   dplyr::desc(ProportionTotal_Y))
+
+
+  #Remove the Locs column
+  resultsM <- dplyr::select (resultsM, -c(Locs, treatment_start, significant))
+
+  class(results) <- c("GeoLift.search", class(resultsM))
+
+  resultsM$rank <- 1:nrow(resultsM)
+
+  if (top_results > nrow(resultsM)){
+    top_results = nrow(resultsM)
+  }
+
+  if (plot_best == TRUE){
+    for(tp in treatment_periods){
+      BestResults <- resultsM %>% dplyr::filter(duration == tp) %>%
+        dplyr::arrange(rank)
+
+      bestmodels <- list()
+      for (i in 1:4){
+
+        locs_aux <- unlist(strsplit(str_replace_all(BestResults$location[i], ", ", ","),split = ","))
+
+        data_lifted <- data
+
+        data_lifted$Y[data_lifted$location %in% locs_aux &
+                        data_lifted$time >= max_time - tp + 1] <-
+          data_lifted$Y[data_lifted$location %in% locs_aux &
+                          data_lifted$time >= max_time - tp + 1]*(1+BestResults$lift[i])
+
+        bestmodels[[i]] <- GeoLift::GeoLift(Y_id = "Y",
+                                             time_id = "time",
+                                             location_id = "location",
+                                             data = data_lifted,
+                                             locations = locs_aux,
+                                             treatment_start_time = max_time - tp + 1,
+                                             treatment_end_time = max_time,
+                                             model = model,
+                                             fixed_effects = fixed_effects,
+                                             print = FALSE)
+
+      }
+      gridExtra::grid.arrange(plot(bestmodels[[1]], notes = paste("locations:", BestResults$location[1],
+                                                                  "\n Treatment Periods:", tp, "\n Minimum Detectable Effect: ",
+                                                                  BestResults$lift[1],
+                                                                  "\n Proportion Total Y: ", 100*round(BestResults$ProportionTotal_Y[1],3),"%")),
+                              plot(bestmodels[[2]], notes = paste("locations:", BestResults$location[2],
+                                                                  "\n Treatment Periods:", tp, "\n Minimum Detectable Effect: ",
+                                                                  BestResults$lift[2],
+                                                                  "\n Proportion Total Y: ", 100*round(BestResults$ProportionTotal_Y[2],3),"%")),
+                              plot(bestmodels[[3]], notes = paste("locations:", BestResults$location[3],
+                                                                  "\n Treatment Periods:", tp, "\n Minimum Detectable Effect: ",
+                                                                  BestResults$lift[3],
+                                                                  "\n Proportion Total Y: ", 100*round(BestResults$ProportionTotal_Y[3],3),"%")),
+                              plot(bestmodels[[4]], notes = paste("locations:", BestResults$location[4],
+                                                                  "\n Treatment Periods:", tp, "\n Minimum Detectable Effect: ",
+                                                                  BestResults$lift[4],
+                                                                  "\n Proportion Total Y: ", 100*round(BestResults$ProportionTotal_Y[4],3),"%")),
+                              ncol = 2)
+    }
+  }
+
+  #NEWCHANGE: Rename Lift to MDE
+  resultsM <- resultsM %>% dplyr::rename(MinDetectableEffect = lift)
+
+  return(as.data.frame(resultsM))
 
 }
 
@@ -1048,6 +1723,25 @@ GeoLiftPower.search <- function(data,
 #' @param locations List of test locations.
 #' @param treatment_start_time Time index of the start of the treatment.
 #' @param treatment_end_time Time index of the end of the treatment.
+#' @param alpha Significance level. Set to 0.1 by default.
+#' @param model A string indicating the outcome model used to augment the Augmented
+#' Synthetic Control Method. Augmentation through a prognostic function can improve
+#' fit and reduce L2 imbalance metrics.
+#' \itemize{
+#'          \item{"None":}{ ASCM is not augmented by a prognostic function. Defualt.}
+#'          \item{"Ridge":}{ Augments with a Ridge regression. Recommended to improve fit
+#'                           for smaller panels (less than 40 locations and 100 time-stamps.))}
+#'          \item{"GSYN":}{ Augments with a Generalized Synthetic Control Method. Recommended
+#'                          to improve fit for larger panels (more than 40 locations and 100
+#'                          time-stamps. }
+#'          \item{"best:}{ Fits the model with the lowest Scaled L2 Imbalance.}
+#'          }
+#' @param fixed_effects A logic flag indicating whether to include unit fixed
+#' effects in the model. Set to TRUE by default.
+#' @param ConfidenceIntervals A logic flag indicating whether to estimate confidence intervals
+#' through jackknifing techniques.  Set to FALSE by default.
+#' @param print A logic flag indicating whether to print the results or not.
+#' Set to TRUE by default.
 #'
 #' @return
 #' GeoLift object that contains:
@@ -1064,6 +1758,10 @@ GeoLiftPower.search <- function(data,
 #'          \item{"test_id":}{ List of names of the test locations.}
 #'          \item{"incremental":}{ Incremental outcome units (Obersved - Counterfactual).}
 #'          \item{"Y_id":}{ Name of the outcome variable.}
+#'          \item{"summary":}{ Model's Summary.}
+#'          \item{"ConfidenceIntervals":}{ Flag indicating whether CI will be included.}
+#'          \item{"lower_bound":}{ Lower confidence interval.}
+#'          \item{"upper_bound":}{ Upper confidence interval.}
 #'          }
 #'
 #' @export
@@ -1074,12 +1772,17 @@ GeoLift <- function(Y_id = "Y",
                     data,
                     locations,
                     treatment_start_time,
-                    treatment_end_time){
+                    treatment_end_time,
+                    alpha = 0.1,
+                    model = "none",
+                    fixed_effects = TRUE,
+                    ConfidenceIntervals = FALSE,
+                    print = TRUE){
 
   # Rename variables to standard names used by GeoLift
   data <- data %>% dplyr::rename(time = time_id,
-                          Y = Y_id,
-                          location = location_id)
+                                 Y = Y_id,
+                                 location = location_id)
 
   data$location <- tolower(data$location)
 
@@ -1098,10 +1801,72 @@ GeoLift <- function(Y_id = "Y",
 
   }
 
+
+  # Optimizing model based on Scaled L2 Score
+  if (model == "best" & length(locations) > 1){
+    scaled_l2_none <- tryCatch(expr = {augsynth::augsynth(fmla, unit = location, time = time,
+                                                          data = data_aux,
+                                                          t_int = treatment_start_time,
+                                                          progfunc = "none",
+                                                          scm = T,
+                                                          fixedeff = fixed_effects)$scaled_l2_imbalance},
+                               error = function(e){
+                                 1
+                               })
+    scaled_l2_ridge <- tryCatch(expr = {augsynth::augsynth(fmla, unit = location, time = time,
+                                                           data = data_aux,
+                                                           t_int = treatment_start_time,
+                                                           progfunc = "ridge",
+                                                           scm = T,
+                                                           fixedeff = fixed_effects)$scaled_l2_imbalance},
+                                error = function(e){
+                                  1
+                                })
+    scaled_l2_gsyn <- tryCatch(expr = {augsynth::augsynth(fmla, unit = location, time = time,
+                                                          data = data_aux,
+                                                          t_int = treatment_start_time,
+                                                          progfunc = "GSYN",
+                                                          scm = T,
+                                                          fixedeff = fixed_effects)$scaled_l2_imbalance},
+                               error = function(e){
+                                 1
+                               })
+
+    if (round(scaled_l2_none, 3) > round(scaled_l2_gsyn, 3) & round(scaled_l2_ridge, 3) > round(scaled_l2_gsyn, 3)){
+      model <- "GSYN"
+    } else if(round(scaled_l2_none, 3) > round(scaled_l2_ridge, 3) & round(scaled_l2_gsyn, 3) > round(scaled_l2_ridge, 3)){
+      model <- "ridge"
+    } else {
+      model <- "None"
+    }
+
+  } else if (model == "best" & length(locations) == 1) {
+    scaled_l2_none <- augsynth::augsynth(fmla, unit = location, time = time,
+                                         data = data_aux,
+                                         t_int = treatment_start_time,
+                                         progfunc = "none",
+                                         scm = T,
+                                         fixedeff = fixed_effects)$scaled_l2_imbalance
+    scaled_l2_ridge <- augsynth::augsynth(fmla, unit = location, time = time,
+                                          data = data_aux,
+                                          t_int = treatment_start_time,
+                                          progfunc = "ridge",
+                                          scm = T,
+                                          fixedeff = fixed_effects)$scaled_l2_imbalance
+    if (round(scaled_l2_none, 3) > round(scaled_l2_ridge, 3)){
+      model <- "ridge"
+    } else {
+      model <- "none"
+    }
+  }
+
+  #Single Augsynth
   augsyn <- augsynth::augsynth(fmla, unit = location, time = time,
-                     data = data_aux,
-                     t_int = treatment_start_time,
-                     progfunc = "GSYN", scm = T)
+                               data = data_aux,
+                               t_int = treatment_start_time,
+                               progfunc = model,
+                               scm = T,
+                               fixedeff = fixed_effects)
 
   inference_df <- data.frame(matrix(ncol=5, nrow=0))
   colnames(inference_df) <- c("ATT",
@@ -1110,58 +1875,41 @@ GeoLift <- function(Y_id = "Y",
                               "Lower.Conf.Int",
                               "Upper.Conf.Int")
 
+  #NEWCHANGE: To avoid running the time-consuming summary process, create and store the object for re-use
+  sum_augsyn <- summary(augsyn, alpha = alpha)
+
   if(paste(augsyn$call)[1] == "single_augsynth"){
-    mean <- summary(augsyn)[['average_att']][['Estimate']]
-    se <- summary(augsyn)[['average_att']][['Std.Error']]
+    mean <- sum_augsyn[['average_att']][['Estimate']] #Use summary object
+    se <- sum_augsyn[['average_att']][['Std.Error']] #Use summary object
 
     loc_id <- c(which(augsyn$data$trt == 1))
     locs_id <- as.data.frame(loc_id, nrow = length(loc_id))
-    locs_id$name <- unlist(locations)
+    #locs_id$name <- unlist(locations) #OLD
+    locs_id$name <- unlist(unique(data_aux$location)[c(which(augsyn$data$trt == 1))]) #NEWCHANGE: Make sure we keep order
 
     y_obs <- c(augsyn$data$X[loc_id,], augsyn$data$y[loc_id,])
-    y_hat <- predict(augsyn)
-    ATT <- predict(augsyn, ATT = T)
-    ATT_se <- summary(augsyn)$att$Std.Error
+    y_hat <- predict(augsyn, att = FALSE)
+    ATT <- predict(augsyn, att = TRUE)
+    ATT_se <- sum_augsyn$att$Std.Error #Use summary object
 
-    lift <- (sum(augsyn$data$y[loc_id,])-
-               sum(predict(augsyn)[treatment_start_time:treatment_end_time])) /
-      sum(predict(augsyn)[treatment_start_time:treatment_end_time])
+    pred_conversions <- predict(augsyn)[treatment_start_time:treatment_end_time] #NEWCHANGE: Store object to avoid re-processing
 
-    incremental <- sum(augsyn$data$y[loc_id,])-
-      sum(predict(augsyn)[treatment_start_time:treatment_end_time])
+    if (length(locations) == 1){
+      lift <- (sum(augsyn$data$y[loc_id,]) - sum(pred_conversions)) /
+        abs(sum(pred_conversions))
+    } else if (length(locations) > 1){
+      lift <- (sum(colMeans(augsyn$data$y[loc_id,]))-
+                 sum(pred_conversions)) /
+        abs(sum(pred_conversions))  #NEWCHANGE: Avoid errors with signs
+    }
 
-    inference_df <- inference_df %>% tibble::add_row(ATT = mean,
-                                             Perc.Lift = 100 * round(lift, 3),
-                                             pvalue = pvalue(augsyn),
-                                             Lower.Conf.Int = mean-qnorm(0.95,0,1)*se,
-                                             Upper.Conf.Int = mean+qnorm(0.95,0,1)*se)
-  }
-  else if(paste(augsyn$call)[1] == "multisynth"){
-    estimates <- summary(augsyn)$att %>% dplyr::filter(Level == "Average" & is.na(Time) == TRUE)
-    mean <- estimates[['Estimate']]
-    se <- estimates[['Std.Error']]
-
-    loc_id <- c(which(augsyn$data$trt == min(augsyn$data$trt)))
-    locs_id <- as.data.frame(loc_id, nrow = length(loc_id))
-    locs_id$name <- augsyn$data$units[loc_id]
-
-    y_obs <- t(cbind(augsyn$data$X[loc_id,],augsyn$data$y[loc_id,]))
-    y_hat <- predict(augsyn)[1:max(data$time),-1]
-    ATT <- matrix(summary(augsyn)$att$Estimate, ncol = (length(locations)+1))[1:max(data$time),]
-    ATT_se <- matrix(summary(augsyn)$att$Std.Error, ncol = (length(locations)+1))[1:max(data$time),]
-
-    lift <- (sum(augsyn$data$y[loc_id,]) -
-               sum(predict(augsyn)[treatment_start_time:treatment_end_time,-1])) /
-      sum(predict(augsyn)[treatment_start_time:treatment_end_time,-1])
-
-    incremental <- sum(augsyn$data$y[loc_id,]) -
-      sum(predict(augsyn)[treatment_start_time:treatment_end_time,-1])
+    incremental <- sum(augsyn$data$y[loc_id,]) - (sum(pred_conversions) * length(loc_id))
 
     inference_df <- inference_df %>% tibble::add_row(ATT = mean,
-                                             Perc.Lift = 100 * round(lift, 3),
-                                             pvalue = pvalue(augsyn),
-                                             Lower.Conf.Int = mean-qnorm(0.95,0,1)*se,
-                                             Upper.Conf.Int = mean+qnorm(0.95,0,1)*se)
+                                                     Perc.Lift = 100 * round(lift, 3),
+                                                     pvalue = sum_augsyn$average_att$p_val, #pvalue(augsyn),
+                                                     Lower.Conf.Int = sum_augsyn$average_att$lower_bound,
+                                                     Upper.Conf.Int = sum_augsyn$average_att$upper_bound)
   }
 
 
@@ -1186,31 +1934,40 @@ GeoLift <- function(Y_id = "Y",
               "TreatmentEnd" = treatment_end_time,
               "test_id" = locs_id,
               "incremental" = incremental,
-              "Y_id" = Y_id)
+              "Y_id" = Y_id,
+              "summary" = sum_augsyn,
+              "ConfidenceIntervals" = ConfidenceIntervals,
+              "lower_bound" = summary(augsyn, alpha = alpha, inf_type = "jackknife+")$average_att$lower_bound,
+              "upper_bound" = summary(augsyn, alpha = alpha, inf_type = "jackknife+")$average_att$upper_bound)
 
-  message(paste0(
-    paste0("\nGeoLift Output\n\n"),
-    paste0("Test results for ", (treatment_end_time - treatment_start_time + 1),
-           " treatment periods, from time-stamp ",
-           treatment_start_time, " to ", treatment_end_time,
-           " for test markets:")))
-  #paste(toupper(locations), collapse = ", ")
-  for (i in 1:length(locations)){
-    message(paste(i, toupper(locations[i])))
+
+
+  if (print == TRUE){
+    message(paste0(
+      paste0("\nGeoLift Output\n\n"),
+      paste0("Test results for ", (treatment_end_time - treatment_start_time + 1),
+             " treatment periods, from time-stamp ",
+             treatment_start_time, " to ", treatment_end_time,
+             " for test markets:")))
+    #paste(toupper(locations), collapse = ", ")
+    for (i in 1:length(locations)){
+      message(paste(i, toupper(locations[i])))
+    }
+    message(paste0(
+      "##################################",
+      "\n#####     Test Statistics    #####\n",
+      "##################################\n",
+      "\nPercent Lift: ",
+      100 * round(lift, 3), "%\n\n",
+      "Incremental ", paste(Y_id), ": ", round(incremental,0), "\n\n",
+      "Average Estimated Treatment Effect (ATT): ", round(mean, 3),
+      "\n\n",significant,
+      "\n\nThere is a ", round(100 * inference_df$pvalue, 2),
+      "% chance of observing an effect this large or larger assuming treatment effect is zero.",
+      sep="")
+    )
   }
-  message(paste0(
-    "##################################",
-    "\n#####     Test Statistics    #####\n",
-    "##################################\n",
-    "\nPercent Lift: ",
-    100 * round(lift, 3), "%\n\n",
-    "Incremental ", paste(Y_id), ": ", round(incremental,0), "\n\n",
-    "Average Estimated Treatment Effect (ATT): ", round(mean, 3),
-    "\n\n",significant,
-    "\n\nThere is a ", round(100 * inference_df$pvalue, 2),
-    "% chance of observing an effect this large or larger assuming treatment effect is zero.",
-    sep="")
-  )
+
 
   class(res) <- c("GeoLift", class(res))
   return(res)
@@ -1224,11 +1981,14 @@ GeoLift <- function(Y_id = "Y",
 #'
 #' Plot for GeoLift objects.
 #'
-#' @param GeoLift GeoLift object.
+#' @param x GeoLift object.
 #' @param type Type of plot. By default "Lift" which plots the
 #' incrementality on the outcome variable. If type is set to "ATT",
 #' the average ATT is plotted.
-#' @param outcome Name of the outcome variable. By default "Units".
+#' @param outcome String name of the outcome variable. By default "Units".
+#' @param main String for the title of the plot. Empty by default.
+#' @param subtitle String for the subtitle of the plot. Empty by default.
+#' @param notes String to add notes to the plot. Empty by default.
 #' @param conf.level Confidence level. By defaul 0.9.
 #' @param test_locs Plot the average results by default. If set to
 #' TRUE, the ATT by test location is plotted.
@@ -1238,35 +1998,37 @@ GeoLift <- function(Y_id = "Y",
 #' GeoLift plot.
 #'
 #' @export
-plot.GeoLift <- function(GeoLift,
+plot.GeoLift <- function(x,
                          type="Lift",
                          outcome = "Units",
+                         main = "",
+                         subtitle = "",
+                         notes = "",
                          conf.level = 0.9,
                          test_locs = FALSE, ...) {
 
-  if (!inherits(GeoLift, 'GeoLift')) {
+
+  if (!inherits(x, 'GeoLift')) {
     stop('object must be class GeoLift')
   }
 
-  if (test_locs == TRUE & paste(GeoLift$results$call)[1] == "multisynth"){
-    if (type == "ATT"){
-      ATT.loc.plot(GeoLift, type="Lift", outcome = "Units", conf.level = 0.9, test_locs, ...)
-    }
-    else if (type == "Lift"){
-      Lift.loc.plot(GeoLift, type="Lift", outcome = "Units", conf.level = 0.9, test_locs, ...)
-    } else {
-      message("Error: Please select a correct plot type: TreatmentSchedule/Lift/ATT")
-    }
-  }
-
-  else if (type == "TreatmentSchedule"){
-    panelView(Y ~ D, data = GeoLift$data, index = c("location", "time"), pre.post = TRUE)
+  if (type == "TreatmentSchedule"){
+    panelView(Y ~ D, data = x$data, index = c("location", "time"), pre.post = TRUE)
 
   } else if (type == "ATT"){
-    ATT.plot(GeoLift, conf.level = 0.9, ...)
+    ATT.plot(GeoLift = x,
+             conf.level = conf.level,
+             outcome = outcome,
+             main = main,
+             subtitle = subtitle,
+             notes = notes, ...)
 
   } else if (type == "Lift"){
-    Lift.plot(GeoLift, outcome)
+    Lift.plot(GeoLift = x,
+              outcome = outcome,
+              main = main,
+              subtitle = subtitle,
+              notes = notes, ...)
 
   } else {
     message("Error: Please select a correct plot type: TreatmentSchedule/Lift/ATT")
@@ -1283,7 +2045,9 @@ plot.GeoLift <- function(GeoLift,
 #'
 #' @param GeoLift GeoLift object.
 #' @param outcome Name of the outcome variable. By default "Units".
-#' @param conf.level Confidence level. By defaul 0.9.
+#' @param main String for the title of the plot. Empty by default.
+#' @param subtitle String for the subtitle of the plot. Empty by default.
+#' @param notes String to add notes to the plot. Empty by default.
 #' @param ... additional arguments
 #'
 #' @return
@@ -1292,15 +2056,16 @@ plot.GeoLift <- function(GeoLift,
 #' @export
 ATT.plot <- function(GeoLift,
                      outcome = "Units",
-                     conf.level = 0.9, ...){
+                     main = "",
+                     subtitle = "",
+                     notes = "", ...) {
 
   if(paste(GeoLift$results$call)[1] == "single_augsynth"){
     df <- as.data.frame(GeoLift$ATT)
     colnames(df) <- c("ATT")
     df$Time <- 1:nrow(df)
-    df$se <- GeoLift$ATT_se
-    df$lower <- df$ATT-qnorm(1-((1-conf.level))/2,0,1)*df$se
-    df$upper <- df$ATT+qnorm(1-(1-conf.level)/2,0,1)*df$se
+    df$lower <- GeoLift$summary$att$lower_bound
+    df$upper <- GeoLift$summary$att$upper_bound
     df$lower[1:(GeoLift$TreatmentStart-1)] <- 0
     df$upper[1:(GeoLift$TreatmentStart-1)] <- 0
     df$diff_lower <- df$ATT
@@ -1327,108 +2092,15 @@ ATT.plot <- function(GeoLift,
       geom_ribbon(aes(ymin = diff_lower, ymax = diff_upper),
                   alpha = 0.2, fill = "wheat3") +
       theme_minimal() +
-      ylab("Average ATT")
-
-  } else if(paste(GeoLift$results$call)[1] == "multisynth"){
-    df <- as.data.frame(GeoLift$ATT[,1])
-    colnames(df) <- c("ATT")
-    df$Time <- 1:nrow(df)
-    df$se <- GeoLift$ATT_se[,1]
-    df$lower <- df$ATT-qnorm(1-((1-conf.level))/2,0,1)*df$se
-    df$upper <- df$ATT+qnorm(1-(1-conf.level)/2,0,1)*df$se
-    df$lower[1:(GeoLift$TreatmentStart-1)] <- 0
-    df$upper[1:(GeoLift$TreatmentStart-1)] <- 0
-    df$diff_lower <- df$ATT
-    df$diff_upper <- df$ATT
-    df$diff_lower[df$ATT > 0] <- 0
-    df$diff_upper[df$ATT < 0] <- 0
-
-    ymin <- min(min(df$lower), min(df$diff_lower))
-    if (ymin < 0) {ymin <- 1.05*ymin
-    } else {ymin <- 0.95 *ymin}
-    ymax <- max(max(df$upper), max(df$diff_upper))
-    if (ymax < 0) {ymax <- 0.95*ymax
-    } else {ymax <- 1.05*ymax}
-
-    ggplot(df,aes(y = ATT,x = Time)) +
-      geom_line(color="steelblue4", size = 0.95) +
-      geom_vline(xintercept = GeoLift$TreatmentStart,
-                 linetype="dashed", size=0.8, color = "grey35") +
-      geom_hline(yintercept = 0, linetype="dashed", size=0.8, color = "indianred3") +
-      annotate("rect", xmin = GeoLift$TreatmentStart,
-               ymin = ymin, xmax= GeoLift$TreatmentEnd,
-               ymax = ymax, alpha=0.15) +
-      geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
-      geom_ribbon(aes(ymin = diff_lower, ymax = diff_upper),
-                  alpha = 0.2, fill = "wheat3") +
-      theme_minimal() +
-      ylab("Average ATT")
-  }
-
-}
-
-
-#' ATT plot function for GeoLift for each test location.
-#'
-#' @description
-#'
-#' ATT plot function for GeoLift for each test location.
-#'
-#' @param GeoLift GeoLift object.
-#' @param conf.level Confidence level. By defaul 0.9.
-#' @param ... additional arguments
-#'
-#' @return
-#' ATT plot for GeoLift for each test location.
-#'
-#' @export
-ATT.loc.plot <- function(GeoLift,
-                         conf.level = 0.9, ...){
-  index <- 2
-
-  for (test in GeoLift$test_id$name){
-
-    df <- as.data.frame(GeoLift$ATT[,index])
-    colnames(df) <- c("ATT")
-    df$Time <- 1:nrow(df)
-    df$se <- GeoLift$ATT_se[,index]
-    df$lower <- df$ATT-qnorm(1-((1-conf.level))/2,0,1)*df$se
-    df$upper <- df$ATT+qnorm(1-(1-conf.level)/2,0,1)*df$se
-    df$lower[1:(GeoLift$TreatmentStart-1)] <- 0
-    df$upper[1:(GeoLift$TreatmentStart-1)] <- 0
-    df$diff_lower <- df$ATT
-    df$diff_upper <- df$ATT
-    df$diff_lower[df$ATT > 0] <- 0
-    df$diff_upper[df$ATT < 0] <- 0
-
-    ymin <- min(min(df$lower), min(df$diff_lower))
-    if (ymin < 0) {ymin <- 1.05*ymin
-    } else {ymin <- 0.95 *ymin}
-    ymax <- max(max(df$upper), max(df$diff_upper))
-    if (ymax < 0) {ymax <- 0.95*ymax
-    } else {ymax <- 1.05*ymax}
-
-    plot <- ggplot(df,aes(y = ATT,x = Time)) +
-      geom_line(color="steelblue4", size = 0.95) +
-      geom_vline(xintercept = GeoLift$TreatmentStart,
-                 linetype="dashed", size=0.8, color = "grey35") +
-      geom_hline(yintercept = 0, linetype="dashed", size=0.8, color = "indianred3") +
-      annotate("rect", xmin = GeoLift$TreatmentStart,
-               ymin = ymin, xmax= GeoLift$TreatmentEnd,
-               ymax = ymax, alpha=0.15) +
-      geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
-      geom_ribbon(aes(ymin = diff_lower, ymax = diff_upper),
-                  alpha = 0.2, fill = "wheat3") +
-      theme_minimal() +
-      ylab(paste("Average ATT | ", toupper(GeoLift$test_id$name[(index - 1)])))
-
-
-    print(plot)
-    index <- index + 1
+      ylab("Average ATT") +
+      labs( title = paste(main),
+            subtitle = paste(subtitle),
+            caption = paste(notes))
 
   }
 
 }
+
 
 
 #' Aggregate Lift plot function for GeoLift.
@@ -1438,7 +2110,10 @@ ATT.loc.plot <- function(GeoLift,
 #' Aggregate Lift plot function for GeoLift.
 #'
 #' @param GeoLift GeoLift object.
-#' @param outcome Name of the outcome variable. By default "Units".
+#' @param outcome String for the name of the outcome variable. By default "Units".
+#' @param main String for the title of the plot. Empty by default.
+#' @param subtitle String for the subtitle of the plot. Empty by default.
+#' @param notes String to add notes to the plot. Empty by default.
 #' @param ... additional arguments
 #'
 #' @return
@@ -1446,18 +2121,22 @@ ATT.loc.plot <- function(GeoLift,
 #'
 #' @export
 Lift.plot <- function(GeoLift,
-                      outcome, ...) {
+                      outcome = "Units",
+                      main = "",
+                      subtitle = "",
+                      notes = "", ...) {
 
   if(paste(GeoLift$results$call)[1] == "single_augsynth"){
-    y_obs <- as.data.frame(GeoLift$y_obs)
+    #y_obs <- as.data.frame(GeoLift$y_obs)
+    y_obs <- as.data.frame(colMeans(matrix(GeoLift$y_obs, nrow = nrow(GeoLift$test_id), ncol = GeoLift$TreatmentEnd))) * nrow(GeoLift$test_id) #NECHANGE: Aggregated Total instead of Average
     colnames(y_obs) <- c("Units")
     y_obs$Time <- 1:nrow(y_obs)
-    y_hat <- as.data.frame(GeoLift$y_hat)
+    y_hat <- as.data.frame(GeoLift$y_hat) * nrow(GeoLift$test_id) #NECHANGE: Aggregated Total instead of Average
     colnames(y_hat) <- c("Units")
     y_hat$Time <- 1:nrow(y_hat)
 
     df <- y_obs %>%  dplyr::mutate(Type = 'Observed') %>%
-      bind_rows(y_hat %>% dplyr::mutate(Type = 'Estimated'))
+      dplyr::bind_rows(y_hat %>% dplyr::mutate(Type = 'Estimated'))
 
     ymin <- min(df$Units)
     if (ymin < 0) {ymin <- 1.05*ymin
@@ -1477,98 +2156,15 @@ Lift.plot <- function(GeoLift,
       scale_color_manual(values=c('indianred1', 'grey20')) +
       scale_size_manual(values=c(1.1, 0.8)) +
       theme_minimal() +
-      ylab(paste(outcome))
+      ylab(paste(outcome)) +
+      labs( title = paste(main),
+            subtitle = paste(subtitle),
+            caption = paste(notes))
 
-  } else if (paste(GeoLift$results$call)[1] == "multisynth"){
-    y_obs <- as.data.frame(rowSums(GeoLift$y_obs))
-    colnames(y_obs) <- c("Units")
-    y_obs$Time <- 1:nrow(y_obs)
-    y_hat <- as.data.frame(rowSums(GeoLift$y_hat))
-    colnames(y_hat) <- c("Units")
-    y_hat$Time <- 1:nrow(y_hat)
-
-    df <- y_obs %>%  dplyr::mutate(Type = 'Observed') %>%
-      bind_rows(y_hat %>% dplyr::mutate(Type = 'Estimated'))
-
-    ymin <- min(df$Units)
-    if (ymin < 0) {ymin <- 1.05*ymin
-    } else {ymin <- 0.95 *ymin}
-    ymax <- max(df$Units)
-    if (ymax < 0) {ymax <- 0.95*ymax
-    } else {ymax <- 1.05*ymax}
-
-    ggplot(df,aes(y = Units,x = Time, group = Type, size=Type)) +
-      geom_line(aes(linetype = Type, color = Type)) +
-      geom_vline(xintercept = GeoLift$TreatmentStart,
-                 linetype="dashed", size=0.8, color = "grey35") +
-      annotate("rect", xmin = GeoLift$TreatmentStart,
-               ymin = ymin, xmax= GeoLift$TreatmentEnd,
-               ymax = ymax, alpha=0.15) +
-      scale_linetype_manual(values=c("dashed", "solid")) +
-      scale_color_manual(values=c('indianred1', 'grey20')) +
-      scale_size_manual(values=c(1.1, 0.8)) +
-      theme_minimal() +
-      ylab(paste(outcome))
   }
 
 }
 
-
-#' Lift plot function for GeoLift for each test location.
-#'
-#' @description
-#'
-#' Lift plot function for GeoLift for each test location.
-#'
-#' @param GeoLift GeoLift object.
-#' @param outcome Name of the outcome variable. By default "Units".
-#'
-#' @return
-#' Lift plot function for GeoLift for each test location.
-#' @param ... additional arguments
-#'
-#' @export
-Lift.loc.plot <- function(GeoLift,
-                          outcome, ...) {
-
-  index <- 2
-
-  for (test in GeoLift$test_id$name){
-    y_obs <- as.data.frame(GeoLift$y_obs[,(index - 1)])
-    colnames(y_obs) <- c("Units")
-    y_obs$Time <- 1:nrow(y_obs)
-    y_hat <- as.data.frame(GeoLift$y_hat[,(index - 1)])
-    colnames(y_hat) <- c("Units")
-    y_hat$Time <- 1:nrow(y_hat)
-
-    df <- y_obs %>%  dplyr::mutate(Type = 'Observed') %>%
-      bind_rows(y_hat %>% dplyr::mutate(Type = 'Estimated'))
-
-    ymin <- min(df$Units)
-    if (ymin < 0) {ymin <- 1.05*ymin
-    } else {ymin <- 0.95 *ymin}
-    ymax <- max(df$Units)
-    if (ymax < 0) {ymax <- 0.95*ymax
-    } else {ymax <- 1.05*ymax}
-
-    plot <- ggplot(df,aes(y = Units,x = Time, group = Type, size=Type)) +
-      geom_line(aes(linetype = Type, color = Type)) +
-      geom_vline(xintercept = GeoLift$TreatmentStart,
-                 linetype="dashed", size=0.8, color = "grey35") +
-      annotate("rect", xmin = GeoLift$TreatmentStart,
-               ymin = ymin, xmax= GeoLift$TreatmentEnd,
-               ymax = ymax, alpha=0.15) +
-      scale_linetype_manual(values=c("dashed", "solid")) +
-      scale_color_manual(values=c('indianred1', 'grey20')) +
-      scale_size_manual(values=c(1.1, 0.8)) +
-      theme_minimal() +
-      ylab(paste(outcome, " | ", toupper(GeoLift$test_id$name[(index - 1)]) ))
-
-    print(plot)
-    index <- index + 1
-  }
-
-}
 
 
 #' Summary method for GeoLift.
@@ -1578,7 +2174,8 @@ Lift.loc.plot <- function(GeoLift,
 #' GeoLift summary output with additional information about the
 #' test.
 #'
-#' @param GeoLift GeoLift object.
+#' @param object GeoLift object.
+#' @param ... Optional arguments
 #'
 #' @return
 #' GeoLift summary object that contains:
@@ -1598,49 +2195,46 @@ Lift.loc.plot <- function(GeoLift,
 #'          \item{"type":}{ Single or Multiple test locations.}
 #'          \item{"Y_id":}{ Name of the outcome variable.}
 #'          \item{"incremental":}{ Incremental outcome units.}
+#'          \item{"bias":}{ Estimated corrected bias.}
+#'          \item{"weights":}{ Synthetic Control Weights.}
+#'          \item{"CI":}{ Flag indicating whether to include Confidence Intervals.}
+#'          \item{"alpha":}{ Significance level.}
+#'          \item{"lower":}{ Lower Bound Confidence Interval.}
+#'          \item{"upper":}{ Upper Bound Confidence Interval.}
 #'       }
 #'
 #' @export
-summary.GeoLift <- function(GeoLift){
+summary.GeoLift <- function(object, ...){
 
-  if (!inherits(GeoLift, 'GeoLift')) {
+  if (!inherits(object, 'GeoLift')) {
     stop('object must be class GeoLift')
   }
 
   summ <- list()
 
-  if(paste(GeoLift$results$call)[1] == "single_augsynth"){
-    summ$ATT_est <- GeoLift$inference$ATT
-    summ$PercLift <- GeoLift$inference$Perc.Lift
-    summ$pvalue <- GeoLift$inference$pvalue
-    summ$LowerCI <- GeoLift$inference$Lower.Conf.Int
-    summ$UpperCI <- GeoLift$inference$Upper.Conf.Int
-    summ$IndL2Imbalance <- summary(GeoLift$results)$l2_imbalance
-    summ$IndL2ImbalanceScaled <- summary(GeoLift$results)$scaled_l2_imbalance
-    summ$ATT <- summary(GeoLift$results)$att
-    summ$start <- GeoLift$TreatmentStart
-    summ$end <- GeoLift$TreatmentEnd
+  if(paste(object$results$call)[1] == "single_augsynth"){
+    summ$ATT_est <- object$inference$ATT
+    summ$PercLift <- object$inference$Perc.Lift
+    summ$pvalue <- object$inference$pvalue
+    summ$LowerCI <- object$inference$Lower.Conf.Int
+    summ$UpperCI <- object$inference$Upper.Conf.Int
+    summ$L2Imbalance <- object$summary$l2_imbalance #NEWCHANGE
+    summ$L2ImbalanceScaled <- object$summary$scaled_l2_imbalance #NEWCHANGE
+    #summ$PercentImprove <- round(1 - GeoLift$summary$scaled_l2_imbalance,3)*100 #NEWCHANGE
+    summ$ATT <- object$summary$att
+    summ$start <- object$TreatmentStart
+    summ$end <- object$TreatmentEnd
     summ$type <- "single"
-    summ$Y_id <- GeoLift$Y_id
-    summ$incremental <- GeoLift$incremental
-  }
-
-  else if (paste(GeoLift$results$call)[1] == "multisynth"){
-    summ$ATT_est <- GeoLift$inference$ATT
-    summ$PercLift <- GeoLift$inference$Perc.Lift
-    summ$pvalue <- GeoLift$inference$pvalue
-    summ$LowerCI <- GeoLift$inference$Lower.Conf.Int
-    summ$UpperCI <- GeoLift$inference$Upper.Conf.Int
-    summ$GlobalL2Imbalance <- summary(GeoLift$results)$global_l2
-    summ$GlobalL2ImbalanceScaled <- summary(GeoLift$results)$scaled_global_l2
-    summ$IndL2Imbalance <- summary(GeoLift$results)$ind_l2
-    summ$IndL2ImbalanceScaled <- summary(GeoLift$results)$scaled_ind_l2
-    summ$ATT <- summary(GeoLift$results)$att
-    summ$start <- GeoLift$TreatmentStart
-    summ$end <- GeoLift$TreatmentEnd
-    summ$type <- "multi"
-    summ$Y_id <- GeoLift$Y_id
-    summ$incremental <- GeoLift$incremental
+    summ$Y_id <- object$Y_id
+    summ$incremental <- object$incremental
+    summ$bias <- mean(object$summary$bias_est)
+    summ$weights <- object$results$weights
+    summ$CI <- object$ConfidenceIntervals
+    summ$alpha <- object$summary$alpha
+    summ$lower <- object$lower_bound
+    summ$upper <- object$upper_bound
+    summ$factor <- ncol(object$results$data$y) * nrow(object$test_id)
+    summ$progfunc <- object$results$progfunc
   }
 
   class(summ) <- "summary.GeoLift"
@@ -1656,102 +2250,114 @@ summary.GeoLift <- function(GeoLift){
 #'
 #' Summary plotting method for GeoLift.
 #'
-#' @param summ GeoLift summary object.
+#' @param x GeoLift summary object.
+#' @param ... Optional arguments.
 #'
 #' @return
 #'
 #' Plot GeoLift summary.
 #'
 #' @export
-print.summary.GeoLift <- function(summ){
+print.summary.GeoLift <- function(x, ...){
 
-  if (!inherits(summ, 'summary.GeoLift')) {
+  if (!inherits(x, 'summary.GeoLift')) {
     stop('object must be class summary.GeoLift')
   }
 
-
   message("\nGeoLift Results Summary\n")
 
-  if(summ$type == "single"){
+  if(x$type == "single" & x$CI == FALSE){
     message(paste0(
       "##################################",
       "\n#####     Test Statistics    #####\n",
       "##################################\n",
-      "\n* Average ATT: ", round(summ$ATT_est,3),
-      "\n* Percent Lift: ", round(summ$PercLift,2),"%",
-      "\n* Incremental ", paste(summ$Y_id), ": ",round(summ$incremental,0),
-      "\n* P-value: ", round(summ$pvalue,2),
-      "\n* 90% Confidence Interval: (", round(summ$LowerCI,3),
-      ", ", round(summ$UpperCI,3), ")",
-
-      "\n\n##################################",
-      "\n#####   Balance Statistics   #####\n",
-      "##################################",
-      "\n* L2 Imbalance: ", round(summ$IndL2Imbalance,3),
-      "\n* Scaled L2 Imbalance: ", round(summ$IndL2ImbalanceScaled,3)
-    )
-    )
-
-  }
-
-  else if (summ$type == "multi"){
-    message(paste0(
-      "##################################",
-      "\n#####     Test Statistics    #####\n",
-      "##################################\n",
-      "\n* Average ATT: ", round(summ$ATT_est,3),
-      "\n* Percent Lift: ", round(summ$PercLift,2),"%",
-      "\n* Incremental ", paste(summ$Y_id), ": ",round(summ$incremental,0),
-      "\n* P-value: ", round(summ$pvalue,2),
-      "\n* 90% Confidence Interval: (", round(summ$LowerCI,2),
-      ", ", round(summ$UpperCI,2), ")",
+      "\n* Average ATT: ", round(x$ATT_est,3),
+      "\n* Percent Lift: ", round(x$PercLift,2),"%",
+      "\n* Incremental ", paste(x$Y_id), ": ",round(x$incremental,0),
+      "\n* P-value: ", round(x$pvalue,2),
+      #"\n* 90% Confidence Interval: (", round(summ$LowerCI,3),  NEWCHANGE: Need to fix
+      #", ", round(summ$UpperCI,3), ")",
 
       "\n\n##################################",
       "\n#####   Balance Statistics   #####\n",
       "##################################\n",
-      "\n* Global L2 Imbalance: ", round(summ$GlobalL2Imbalance,3),
-      "\n* Scaled Global L2 Imbalance: ", round(summ$GlobalL2ImbalanceScaled,3),
-      "\n* Individual L2 Imbalance: ", round(summ$IndL2Imbalance,3),
-      "\n* Scaled Individual L2 Imbalance: ", round(summ$IndL2ImbalanceScaled,3),
+      "\n* L2 Imbalance: ", round(x$L2Imbalance,3),
+      "\n* Scaled L2 Imbalance: ", round(x$L2ImbalanceScaled,4),
+      "\n* Percent improvement from naive model: ", round(1 - x$L2ImbalanceScaled,4)*100,"%",
+      "\n* Average Estimated Bias: ", round(x$bias,3),
 
       "\n\n##################################",
-      "\n#####  Results By Location   #####\n",
-      "##################################"
+      "\n#####     Model Weights      #####\n",
+      "##################################\n",
+      "\n* Prognostic Function: ", toupper(x$progfunc), "\n",
+      "\n* Model Weights:"
     )
     )
-    for (level in unique(summ$ATT$Level)){
-      sig <- "+++"
-      z <- summ$ATT[summ$ATT$Level == level & is.na(summ$ATT$Time),]$Estimate /
-        summ$ATT[summ$ATT$Level == level & is.na(summ$ATT$Time),]$Std.Error
-      p <- 2*(1-pnorm(abs(z)))
-      if (p <= 0.01) {
-        sig <- "***"
-      } else if (p <= 0.05){
-        sig <- "**"
-      } else if (p <= 0.1) {
-        sig <- "*"
-      } else if (p <= 0.2) {
-        sig <- "'"
-      } else { sig <- ""}
-
-      if (level == "Average"){
-        message(paste0("\nGlobal Avg. ATT: ",
-                       round(summ$ATT[summ$ATT$Level == level & is.na(summ$ATT$Time),]$Estimate,3),
-                       " ", sig
-        )
-        )
-      } else{
-        message(paste0("\n", toupper(level), " Avg. ATT: ",
-                       round(summ$ATT[summ$ATT$Level == level & is.na(summ$ATT$Time),]$Estimate,3),
-                       " ", sig
-        )
-        )
+    for (row in 1:length(x$weights)){
+      if(round(x$weights[row],4) != 0){
+        message(paste0(" * ", dimnames(x$weights)[[1]][row], ": ",round(x$weights[row],4)))
       }
+
     }
-    message(paste0("\n***: Significant at a 99% Confidence Level",
-                   "\n**: Significant at a 95% Confidence Level",
-                   "\n*: Significant at a 90% Confidence Level",
-                   "\n': Significant at an 80% Confidence Level"))
   }
+  else if (x$type == "single" & x$CI == TRUE){
+    message(paste0(
+      "##################################",
+      "\n#####     Test Statistics    #####\n",
+      "##################################\n",
+      "\n* Average ATT: ", round(x$ATT_est,3),
+      "\n* Percent Lift: ", round(x$PercLift,2),"%",
+      "\n* Incremental ", paste(x$Y_id), ": ",round(x$incremental,0),
+      "\n* P-value: ", round(x$pvalue,2),
+      "\n* ", (1 - x$alpha) * 100, "% Confidence Interval: (", round(x$lower * x$factor,3),", ", round(x$upper * x$factor,3), ")",
+
+      "\n\n##################################",
+      "\n#####   Balance Statistics   #####\n",
+      "##################################\n",
+      "\n* L2 Imbalance: ", round(x$L2Imbalance,3),
+      "\n* Scaled L2 Imbalance: ", round(x$L2ImbalanceScaled,4),
+      "\n* Percent improvement from naive model: ", round(1 - x$L2ImbalanceScaled,4)*100,"%",
+      "\n* Average Estimated Bias: ", round(x$bias,3),
+
+      "\n\n##################################",
+      "\n#####     Model Weights      #####\n",
+      "##################################\n",
+      "\n* Model Weights:"
+    )
+    )
+    for (row in 1:length(x$weights)){
+      if(round(x$weights[row],4) != 0){
+        message(paste0(" * ", dimnames(x$weights)[[1]][row], ": ",round(x$weights[row],4)))
+      }
+
+    }
+  }
+
 
 }
+
+
+#' GeoLift
+#'
+#' @description A package implementing the Augmented Synthetic Controls Method
+#' @docType package
+#' @name GeoLift-package
+#' @importFrom magrittr "%>%"
+#' @import augsynth
+#' @import gsynth
+#' @import panelView
+#' @import doParallel
+#' @import foreach
+#' @import ggrepel
+#' @import MarketMatching
+#' @import stringr
+#' @import directlabels
+#' @import ggplot2
+#' @import tibble
+#' @import tidyr
+#' @import parallel
+#' @import graphics
+#' @import stats
+#' @import utils
+#' @import rlang
+NULL

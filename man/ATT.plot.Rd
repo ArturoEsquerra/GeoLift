@@ -4,14 +4,18 @@
 \alias{ATT.plot}
 \title{Average ATT plot function for GeoLift.}
 \usage{
-ATT.plot(GeoLift, outcome = "Units", conf.level = 0.9, ...)
+ATT.plot(GeoLift, outcome = "Units", main = "", subtitle = "", notes = "", ...)
 }
 \arguments{
 \item{GeoLift}{GeoLift object.}
 
 \item{outcome}{Name of the outcome variable. By default "Units".}
 
-\item{conf.level}{Confidence level. By defaul 0.9.}
+\item{main}{String for the title of the plot. Empty by default.}
+
+\item{subtitle}{String for the subtitle of the plot. Empty by default.}
+
+\item{notes}{String to add notes to the plot. Empty by default.}
 
 \item{...}{additional arguments}
 }

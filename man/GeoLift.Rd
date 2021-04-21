@@ -12,7 +12,12 @@ GeoLift(
   data,
   locations,
   treatment_start_time,
-  treatment_end_time
+  treatment_end_time,
+  alpha = 0.1,
+  model = "none",
+  fixed_effects = TRUE,
+  ConfidenceIntervals = FALSE,
+  print = TRUE
 )
 }
 \arguments{
@@ -34,6 +39,30 @@ of the time period (starting at 1), and covariates.}
 \item{treatment_start_time}{Time index of the start of the treatment.}
 
 \item{treatment_end_time}{Time index of the end of the treatment.}
+
+\item{alpha}{Significance level. Set to 0.1 by default.}
+
+\item{model}{A string indicating the outcome model used to augment the Augmented
+Synthetic Control Method. Augmentation through a prognostic function can improve
+fit and reduce L2 imbalance metrics.
+\itemize{
+         \item{"None":}{ ASCM is not augmented by a prognostic function. Defualt.}
+         \item{"Ridge":}{ Augments with a Ridge regression. Recommended to improve fit
+                          for smaller panels (less than 40 locations and 100 time-stamps.))}
+         \item{"GSYN":}{ Augments with a Generalized Synthetic Control Method. Recommended
+                         to improve fit for larger panels (more than 40 locations and 100
+                         time-stamps. }
+         \item{"best:}{ Fits the model with the lowest Scaled L2 Imbalance.}
+         }}
+
+\item{fixed_effects}{A logic flag indicating whether to include unit fixed
+effects in the model. Set to TRUE by default.}
+
+\item{ConfidenceIntervals}{A logic flag indicating whether to estimate confidence intervals
+through jackknifing techniques.  Set to FALSE by default.}
+
+\item{print}{A logic flag indicating whether to print the results or not.
+Set to TRUE by default.}
 }
 \value{
 GeoLift object that contains:
@@ -50,6 +79,10 @@ GeoLift object that contains:
          \item{"test_id":}{ List of names of the test locations.}
          \item{"incremental":}{ Incremental outcome units (Obersved - Counterfactual).}
          \item{"Y_id":}{ Name of the outcome variable.}
+         \item{"summary":}{ Model's Summary.}
+         \item{"ConfidenceIntervals":}{ Flag indicating whether CI will be included.}
+         \item{"lower_bound":}{ Lower confidence interval.}
+         \item{"upper_bound":}{ Upper confidence interval.}
          }
 }
 \description{

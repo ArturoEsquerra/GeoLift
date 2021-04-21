@@ -5,22 +5,31 @@
 \title{Plot for GeoLift.}
 \usage{
 \method{plot}{GeoLift}(
-  GeoLift,
+  x,
   type = "Lift",
   outcome = "Units",
+  main = "",
+  subtitle = "",
+  notes = "",
   conf.level = 0.9,
   test_locs = FALSE,
   ...
 )
 }
 \arguments{
-\item{GeoLift}{GeoLift object.}
+\item{x}{GeoLift object.}
 
 \item{type}{Type of plot. By default "Lift" which plots the
 incrementality on the outcome variable. If type is set to "ATT",
 the average ATT is plotted.}
 
-\item{outcome}{Name of the outcome variable. By default "Units".}
+\item{outcome}{String name of the outcome variable. By default "Units".}
+
+\item{main}{String for the title of the plot. Empty by default.}
+
+\item{subtitle}{String for the subtitle of the plot. Empty by default.}
+
+\item{notes}{String to add notes to the plot. Empty by default.}
 
 \item{conf.level}{Confidence level. By defaul 0.9.}
 

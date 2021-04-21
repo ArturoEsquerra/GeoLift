@@ -2,7 +2,7 @@
 % Please edit documentation in R/GeoLift.R
 \name{GeoPlot}
 \alias{GeoPlot}
-\title{Plotting function for Exploratory Analisis.}
+\title{Plotting function for Exploratory Analysis.}
 \usage{
 GeoPlot(
   data,

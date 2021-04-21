@@ -4,16 +4,17 @@
 \alias{plot.GeoLiftPower}
 \title{Plotting function for GeoLiftPower.}
 \usage{
-\method{plot}{GeoLiftPower}(x, power = 0.8, conf.level = 0.9, table = TRUE, ...)
+\method{plot}{GeoLiftPower}(x, power = 0.8, table = TRUE, actual_values = FALSE, ...)
 }
 \arguments{
 \item{x}{GeoLiftPower object.}
 
 \item{power}{Power level. By default 0.8.}
 
-\item{conf.level}{Confidence level. By default 0.9.}
-
 \item{table}{Plot the table of power estimates. TRUE by default.}
+
+\item{actual_values}{Logic flag indicating whether to include in the plot
+the actual values in addition to the smoothed values.}
 
 \item{...}{additional arguments}
 }
@@ -21,5 +22,6 @@
 GeoLiftPower plot.
 }
 \description{
-Plotting functoin for \code{GeoLiftPower}.
+Plotting function for \code{GeoLiftPower}. The function smooths the power curve
+for ease of interpretation.
 }

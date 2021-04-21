@@ -16,7 +16,12 @@ NumberLocations(
   time_id = "time",
   plot = TRUE,
   power = 0.8,
-  conf.level = 0.9
+  alpha = 0.1,
+  type = "pValue",
+  normalize = FALSE,
+  model = "none",
+  fixed_effects = TRUE,
+  ProgressBar = FALSE
 )
 }
 \arguments{
@@ -45,7 +50,35 @@ total number of locations.}
 
 \item{power}{Power level. By default 0.8.}
 
-\item{conf.level}{Confidence level. By default 0.9.}
+\item{alpha}{Significance Level. By default 0.1.}
+
+\item{type}{Method of inference used in the analysis.
+pValue=Provides conformal inference to provide the aggregate
+p-value for the null hypothesis of no effect from the intervention.
+The Default type is pValue.
+Imbalance=Uses the model's Scaled L2 Imbalance metric.}
+
+\item{normalize}{A logic flag indicating whether to scale the outcome which is
+useful to accelerate computing speed when the magnitude of the data is large. The
+default is FALSE.}
+
+\item{model}{A string indicating the outcome model used to augment the Augmented
+Synthetic Control Method. Augmentation through a prognostic function can improve
+fit and reduce L2 imbalance metrics.
+\itemize{
+         \item{"None":}{ ASCM is not augmented by a prognostic function. Defualt.}
+         \item{"Ridge":}{ Augments with a Ridge regression. Recommended to improve fit
+                          for smaller panels (less than 40 locations and 100 time-stamps.))}
+         \item{"GSYN":}{ Augments with a Generalized Synthetic Control Method. Recommended
+                         to improve fit for larger panels (more than 40 locations and 100
+                         time-stamps. }
+         }}
+
+\item{fixed_effects}{A logic flag indicating whether to include unit fixed
+effects in the model. Set to TRUE by default.}
+
+\item{ProgressBar}{A logic flag indicating whether to display a progress bar
+to track progress. Set to FALSE by default.}
 }
 \value{
 Table of average power by number of locations.
