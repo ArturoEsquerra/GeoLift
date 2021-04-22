@@ -11,26 +11,18 @@ knitr::opts_chunk$set(
 #  ## Install devtools if noy already installed
 #  install.packages("devtools", repos='http://cran.us.r-project.org')
 #  ## Install GeoLift from github
-#  devtools::install_github("ArturoEsquerra/GeoLiftAlpha")
+#  devtools::install_github("ArturoEsquerra/GeoLift")
 
 ## ----libraries, results="hide", warning=F, message=F--------------------------
 library(augsynth)
 library(gsynth)
-library(GeoLiftAlpha)
+library(GeoLift)
 library(dplyr)
 library(doParallel)
 library(foreach)
 library(MarketMatching)
 
 ## ----load_data, results="hide", warning=F, message=F--------------------------
-library(augsynth)
-library(gsynth)
-library(GeoLiftAlpha)
-library(dplyr)
-library(doParallel)
-library(foreach)
-library(MarketMatching)
-
 data(GeoLift_PreTest)
 
 ## ----GeoDataRead--------------------------------------------------------------

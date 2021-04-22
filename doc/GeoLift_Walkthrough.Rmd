@@ -28,13 +28,13 @@ You can install `GeoLift` from GitHub using the `devtools` package.
 ## Install devtools if noy already installed
 install.packages("devtools", repos='http://cran.us.r-project.org')
 ## Install GeoLift from github
-devtools::install_github("ArturoEsquerra/GeoLiftAlpha")
+devtools::install_github("ArturoEsquerra/GeoLift")
 ```
 
 ```{r libraries, results="hide", warning=F, message=F}
 library(augsynth)
 library(gsynth)
-library(GeoLiftAlpha)
+library(GeoLift)
 library(dplyr)
 library(doParallel)
 library(foreach)
@@ -47,14 +47,6 @@ library(MarketMatching)
 To show an end-to-end implementation of GeoLift we will use simulated data of 40 US cities across 90 days to first design a test, select test markets, run power calculations, and finally calculate the Lift caused by the campaign. As with every GeoLift test, we start analyzing pre-test historical information. We will use data included in the `GeoLift` package.
 
 ```{r load_data, results="hide", warning=F, message=F}
-library(augsynth)
-library(gsynth)
-library(GeoLiftAlpha)
-library(dplyr)
-library(doParallel)
-library(foreach)
-library(MarketMatching)
-
 data(GeoLift_PreTest)
 ```
 

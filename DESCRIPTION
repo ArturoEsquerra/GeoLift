@@ -1,5 +1,5 @@
 Package: GeoLift
-Title: GeoLift Method to Calculate Lift at a Geo Level
+Title: Synthetic Control Method to Calculate Lift at a Geo Level
 Version: 2.0
 Authors@R: c(
     person(given = "Arturo",
@@ -33,6 +33,7 @@ Imports:
     ggrepel,
     MarketMatching,
     magrittr,
+    dplyr,
     stringr,
     directlabels,
     ggplot2,
