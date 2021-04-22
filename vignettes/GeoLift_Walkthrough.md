@@ -11,13 +11,13 @@ You can install `GeoLift` from GitHub using the `devtools` package.
 ## Install devtools if noy already installed
 install.packages("devtools", repos='http://cran.us.r-project.org')
 ## Install GeoLift from github
-devtools::install_github("ArturoEsquerra/GeoLiftAlpha")
+devtools::install_github("ArturoEsquerra/GeoLift")
 ```
 
 ``` r
 library(augsynth)
 library(gsynth)
-library(GeoLiftAlpha)
+library(GeoLift)
 library(dplyr)
 library(doParallel)
 library(foreach)
@@ -36,14 +36,6 @@ historical information. We will use data included in the `GeoLift`
 package.
 
 ``` r
-library(augsynth)
-library(gsynth)
-library(GeoLiftAlpha)
-library(dplyr)
-library(doParallel)
-library(foreach)
-library(MarketMatching)
-
 data(GeoLift_PreTest)
 ```
 
@@ -147,17 +139,17 @@ resultsNum <- NumberLocations(data = GeoTestData_PreTest,
 #>        n mean_pow mean_L2ScaledImbalance
 #>    <dbl>    <dbl>                  <dbl>
 #>  1     0    0                      1    
-#>  2     1    0.842                  0.434
-#>  3     2    0.866                  0.389
-#>  4     4    0.878                  0.376
-#>  5     7    0.878                  0.360
-#>  6     8    0.866                  0.345
-#>  7    10    0.874                  0.362
-#>  8    13    0.86                   0.360
-#>  9    15    0.864                  0.370
-#> 10    16    0.844                  0.379
-#> 11    18    0.852                  0.388
-#> 12    20    0.8                    0.394
+#>  2     1    0.886                  0.445
+#>  3     2    0.872                  0.401
+#>  4     4    0.88                   0.366
+#>  5     7    0.874                  0.351
+#>  6     8    0.886                  0.356
+#>  7    10    0.874                  0.359
+#>  8    13    0.85                   0.375
+#>  9    15    0.844                  0.369
+#> 10    16    0.832                  0.375
+#> 11    18    0.798                  0.387
+#> 12    20    0.834                  0.396
 ```
 
 <img src="GeoLift_Walkthrough_files/figure-gfm/numberlocations-1.png" style="display: block; margin: auto;" />
@@ -219,28 +211,28 @@ resultsSearch <- GeoLiftPower.search(data = GeoTestData_PreTest,
                                      ProgressBar = TRUE)
 #> [1] "Best 20 test markets:"
 #> # A tibble: 20 x 1
-#>    location                                         
-#>    <chr>                                            
-#>  1 chicago, portland                                
-#>  2 chicago, cincinnati                              
-#>  3 chicago, cincinnati, houston, portland           
-#>  4 chicago, houston, portland                       
-#>  5 columbus, jacksonville, minneapolis              
-#>  6 columbus, jacksonville, milwaukee, minneapolis   
-#>  7 jacksonville, minneapolis                        
-#>  8 atlanta, chicago, cincinnati, san diego          
-#>  9 jacksonville, kansas city, milwaukee, new orleans
-#> 10 jacksonville, kansas city, milwaukee, oakland    
-#> 11 kansas city, milwaukee, oakland                  
-#> 12 columbus, minneapolis, new york                  
-#> 13 detroit, jacksonville, new orleans               
-#> 14 atlanta, chicago, cincinnati                     
-#> 15 austin, oakland                                  
-#> 16 nashville, san diego                             
-#> 17 cleveland, denver, washington                    
-#> 18 dallas, washington                               
-#> 19 cleveland, dallas, denver, washington            
-#> 20 cleveland, denver
+#>    location                                      
+#>    <chr>                                         
+#>  1 chicago, portland                             
+#>  2 chicago, cincinnati                           
+#>  3 chicago, cincinnati, houston, portland        
+#>  4 chicago, houston, portland                    
+#>  5 columbus, jacksonville, minneapolis           
+#>  6 columbus, jacksonville, milwaukee, minneapolis
+#>  7 jacksonville, minneapolis                     
+#>  8 atlanta, chicago, cincinnati, san diego       
+#>  9 jacksonville, kansas city, milwaukee, oakland 
+#> 10 kansas city, milwaukee, oakland               
+#> 11 columbus, minneapolis, new york               
+#> 12 detroit, jacksonville, new orleans            
+#> 13 atlanta, chicago, cincinnati                  
+#> 14 austin, oakland                               
+#> 15 nashville, san diego                          
+#> 16 cleveland, denver, washington                 
+#> 17 dallas, washington                            
+#> 18 cleveland, dallas, denver, washington         
+#> 19 cleveland, denver                             
+#> 20 atlanta, chicago, reno
 ```
 
 The results show the best combination of test markets, the average power
@@ -265,37 +257,37 @@ head(resultsSearch,50)
 #> 6        columbus, jacksonville, milwaukee, minneapolis        1
 #> 7                             jacksonville, minneapolis        1
 #> 8               atlanta, chicago, cincinnati, san diego        1
-#> 9     jacksonville, kansas city, milwaukee, new orleans        1
-#> 10        jacksonville, kansas city, milwaukee, oakland        1
-#> 11                      kansas city, milwaukee, oakland        1
-#> 12                      columbus, minneapolis, new york        1
-#> 13                   detroit, jacksonville, new orleans        1
-#> 14                         atlanta, chicago, cincinnati        1
-#> 15                                      austin, oakland        1
-#> 16                                 nashville, san diego        1
-#> 17                        cleveland, denver, washington        1
-#> 18                                   dallas, washington        1
-#> 19                cleveland, dallas, denver, washington        1
-#> 20                                    cleveland, denver        1
-#> 21                               atlanta, chicago, reno        1
-#> 22                                   columbus, new york        1
-#> 23                    boston, jacksonville, new orleans        1
-#> 24                          dallas, memphis, washington        1
-#> 25                 atlanta, chicago, houston, nashville        1
-#> 26         boston, jacksonville, milwaukee, new orleans        1
-#> 27                    atlanta, chicago, las vegas, reno        1
-#> 28                                  boston, new orleans        1
-#> 29                    chicago, miami, phoenix, portland        1
-#> 30           columbus, minneapolis, phoenix, saint paul        1
-#> 31                                      dallas, memphis        1
-#> 32                                     atlanta, chicago        1
-#> 33 jacksonville, milwaukee, new orleans, salt lake city        1
-#> 34                                        atlanta, reno        1
-#> 35             dallas, indianapolis, tucson, washington        1
-#> 36               milwaukee, new orleans, salt lake city        1
-#> 37                              dallas, denver, memphis        1
-#> 38               baltimore, chicago, philadelphia, reno        1
-#> 39               atlanta, chicago, cleveland, las vegas        1
+#> 9         jacksonville, kansas city, milwaukee, oakland        1
+#> 10                      kansas city, milwaukee, oakland        1
+#> 11                      columbus, minneapolis, new york        1
+#> 12                   detroit, jacksonville, new orleans        1
+#> 13                         atlanta, chicago, cincinnati        1
+#> 14                                      austin, oakland        1
+#> 15                                 nashville, san diego        1
+#> 16                        cleveland, denver, washington        1
+#> 17                                   dallas, washington        1
+#> 18                cleveland, dallas, denver, washington        1
+#> 19                                    cleveland, denver        1
+#> 20                               atlanta, chicago, reno        1
+#> 21                                   columbus, new york        1
+#> 22                    boston, jacksonville, new orleans        1
+#> 23                          dallas, memphis, washington        1
+#> 24                 atlanta, chicago, houston, nashville        1
+#> 25         boston, jacksonville, milwaukee, new orleans        1
+#> 26                    atlanta, chicago, las vegas, reno        1
+#> 27                                  boston, new orleans        1
+#> 28                    chicago, miami, phoenix, portland        1
+#> 29           columbus, minneapolis, phoenix, saint paul        1
+#> 30                                      dallas, memphis        1
+#> 31                                     atlanta, chicago        1
+#> 32 jacksonville, milwaukee, new orleans, salt lake city        1
+#> 33                                        atlanta, reno        1
+#> 34             dallas, indianapolis, tucson, washington        1
+#> 35               milwaukee, new orleans, salt lake city        1
+#> 36                              dallas, denver, memphis        1
+#> 37               baltimore, chicago, philadelphia, reno        1
+#> 38               atlanta, chicago, cleveland, las vegas        1
+#> 39                                philadelphia, phoenix        1
 #> 40                          atlanta, chicago, las vegas        1
 #> 41              atlanta, chicago, las vegas, saint paul        1
 #> 42                  dallas, denver, memphis, washington        1
@@ -316,37 +308,37 @@ head(resultsSearch,50)
 #> 6                 0.2405941        0.07980000    6
 #> 7                 0.2410849        0.03032910    7
 #> 8                 0.2442581        0.07972448    8
-#> 9                 0.2569442        0.09292982    9
-#> 10                0.2574026        0.14137854   10
-#> 11                0.2685320        0.12663961   11
-#> 12                0.2703825        0.06085010   12
-#> 13                0.2973898        0.05759078   13
-#> 14                0.2974999        0.05974536   14
-#> 15                0.3292909        0.09130958   15
-#> 16                0.3335420        0.03891756   16
-#> 17                0.3433092        0.05441289   17
-#> 18                0.3479090        0.02813718   18
-#> 19                0.3502726        0.06765979   19
-#> 20                0.3564324        0.03952262   20
-#> 21                0.3616352        0.05987384   21
-#> 22                0.3708776        0.04525993   22
-#> 23                0.3973124        0.06668101   23
-#> 24                0.4038219        0.05264545   24
-#> 25                0.4073829        0.08579610   25
-#> 26                0.4144254        0.09162196   26
-#> 27                0.4333745        0.08745281   27
-#> 28                0.4410101        0.05194208   28
-#> 29                0.4545603        0.08643983   29
-#> 30                0.4654714        0.09334682   30
-#> 31                0.4678047        0.03775518   31
-#> 32                0.4690191        0.04195217   32
-#> 33                0.4777102        0.10618076   33
-#> 34                0.4813197        0.04347870   34
-#> 35                0.5063360        0.07444548   35
-#> 36                0.5083355        0.09144184   36
-#> 37                0.5089938        0.05758391   37
-#> 38                0.5212097        0.12112393   38
-#> 39                0.5279224        0.08922503   39
+#> 9                 0.2574026        0.14137854    9
+#> 10                0.2685320        0.12663961   10
+#> 11                0.2703825        0.06085010   11
+#> 12                0.2973898        0.05759078   12
+#> 13                0.2974999        0.05974536   13
+#> 14                0.3292909        0.09130958   14
+#> 15                0.3335420        0.03891756   15
+#> 16                0.3433092        0.05441289   16
+#> 17                0.3479090        0.02813718   17
+#> 18                0.3502726        0.06765979   18
+#> 19                0.3564324        0.03952262   19
+#> 20                0.3616352        0.05987384   20
+#> 21                0.3708776        0.04525993   21
+#> 22                0.3973124        0.06668101   22
+#> 23                0.4038219        0.05264545   23
+#> 24                0.4073829        0.08579610   24
+#> 25                0.4144254        0.09162196   25
+#> 26                0.4333745        0.08745281   26
+#> 27                0.4410101        0.05194208   27
+#> 28                0.4545603        0.08643983   28
+#> 29                0.4654714        0.09334682   29
+#> 30                0.4678047        0.03775518   30
+#> 31                0.4690191        0.04195217   31
+#> 32                0.4777102        0.10618076   32
+#> 33                0.4813197        0.04347870   33
+#> 34                0.5063360        0.07444548   34
+#> 35                0.5083355        0.09144184   35
+#> 36                0.5089938        0.05758391   36
+#> 37                0.5212098        0.12112393   37
+#> 38                0.5279224        0.08922503   38
+#> 39                0.5280654        0.09829630   39
 #> 40                0.5357709        0.06953114   40
 #> 41                0.5512384        0.08767192   41
 #> 42                0.5595739        0.07247418   42
@@ -429,28 +421,28 @@ resultsFind <- GeoLiftPowerFinder(data = GeoTestData_PreTest,
 
 ``` r
 head(resultsFind,10)
-#>                                          location pvalue duration
-#> 1                               chicago, portland      0       10
-#> 2                               chicago, portland      0       15
-#> 3        columbus, minneapolis, new york, orlando      0       10
-#> 4                       jacksonville, minneapolis      0       10
-#> 5  columbus, jacksonville, milwaukee, minneapolis      0       10
-#> 6                      chicago, houston, portland      0       15
-#> 7         atlanta, chicago, cincinnati, san diego      0       15
-#> 8                 columbus, minneapolis, new york      0       10
-#> 9                                  dallas, denver      0       15
-#> 10           jacksonville, milwaukee, new orleans      0       10
-#>    MinDetectableEffect ScaledL2Imbalance ProportionTotal_Y rank
-#> 1                 0.10         0.1682310        0.03306537    1
-#> 2                 0.10         0.1738778        0.03306537    2
-#> 3                 0.10         0.2188363        0.08010168    3
-#> 4                 0.10         0.2278603        0.03032910    4
-#> 5                 0.05         0.2280487        0.07980000    5
-#> 6                 0.10         0.2336638        0.05797087    6
-#> 7                 0.10         0.2421710        0.07972448    7
-#> 8                 0.10         0.2636719        0.06085010    8
-#> 9                 0.10         0.2639273        0.03307564    9
-#> 10                0.10         0.2671716        0.06786505   10
+#>                                    location pvalue duration MinDetectableEffect
+#> 1                         chicago, portland      0       10                 0.1
+#> 2                         chicago, portland      0       15                 0.1
+#> 3                       chicago, cincinnati      0       15                 0.1
+#> 4    chicago, cincinnati, houston, portland      0       10                 0.1
+#> 5  columbus, minneapolis, new york, orlando      0       10                 0.1
+#> 6                     baton rouge, portland      0       15                 0.1
+#> 7  columbus, minneapolis, new york, orlando      0       15                 0.1
+#> 8                 jacksonville, minneapolis      0       10                 0.1
+#> 9                chicago, houston, portland      0       10                 0.1
+#> 10               chicago, houston, portland      0       15                 0.1
+#>    ScaledL2Imbalance ProportionTotal_Y rank
+#> 1          0.1682310        0.03306537    1
+#> 2          0.1738778        0.03306537    2
+#> 3          0.1842457        0.03418832    3
+#> 4          0.1966996        0.07576405    4
+#> 5          0.2188363        0.08010168    5
+#> 6          0.2220392        0.03289916    6
+#> 7          0.2245568        0.08010168    7
+#> 8          0.2278603        0.03032910    8
+#> 9          0.2305628        0.05797087    9
+#> 10         0.2336638        0.05797087   10
 ```
 
 The results echo the findings of `GeoLiftPower.search` and show that the
@@ -497,10 +489,10 @@ plot(resultsPow, actual_values = TRUE)
 #> 4        10 0.03 0.0000000
 #> 5        10 0.04 0.0312500
 #> 6        10 0.05 0.1562500
-#> 7        10 0.06 0.4375000
+#> 7        10 0.06 0.4062500
 #> 8        10 0.07 0.5625000
 #> 9        10 0.08 0.7812500
-#> 10       10 0.09 0.9375000
+#> 10       10 0.09 0.9687500
 #> 11       10 0.10 0.9687500
 #> 12       10 0.11 0.9687500
 #> 13       10 0.12 1.0000000
@@ -522,12 +514,12 @@ plot(resultsPow, actual_values = TRUE)
 #> 29       15 0.02 0.0000000
 #> 30       15 0.03 0.0000000
 #> 31       15 0.04 0.0000000
-#> 32       15 0.05 0.2222222
+#> 32       15 0.05 0.1851852
 #> 33       15 0.06 0.3333333
-#> 34       15 0.07 0.5925926
+#> 34       15 0.07 0.5555556
 #> 35       15 0.08 0.7037037
-#> 36       15 0.09 0.7777778
-#> 37       15 0.10 0.9629630
+#> 36       15 0.09 0.7407407
+#> 37       15 0.10 0.8888889
 #> 38       15 0.11 1.0000000
 #> 39       15 0.12 1.0000000
 #> 40       15 0.13 1.0000000
@@ -548,7 +540,7 @@ plot(resultsPow, actual_values = TRUE)
 
 <img src="GeoLift_Walkthrough_files/figure-gfm/geoliftpower-1.png" style="display: block; margin: auto;" />
 
-    #> Warning: Removed 41 rows containing missing values (geom_smooth).
+    #> Warning: Removed 40 rows containing missing values (geom_smooth).
 
 <img src="GeoLift_Walkthrough_files/figure-gfm/geoliftpower-2.png" style="display: block; margin: auto;" />
 
@@ -648,7 +640,7 @@ GeoTest <- GeoLift(Y_id = "Y",
 #> 
 #> The results are significant at a 95% level.
 #> 
-#> There is a 0.9% chance of observing an effect this large or larger assuming treatment effect is zero.
+#> There is a 0.5% chance of observing an effect this large or larger assuming treatment effect is zero.
 ```
 
 The results show that the campaigns led to a 5.4% lift in units sold
@@ -673,7 +665,7 @@ summary(GeoTest)
 #> * Average ATT: 155.556
 #> * Percent Lift: 5.4%
 #> * Incremental Y: 4667
-#> * P-value: 0.01
+#> * P-value: 0
 #> 
 #> ##################################
 #> #####   Balance Statistics   #####
@@ -821,7 +813,7 @@ GeoTestBest <- GeoLift(Y_id = "Y",
 #> 
 #> The results are significant at a 95% level.
 #> 
-#> There is a 1% chance of observing an effect this large or larger assuming treatment effect is zero.
+#> There is a 1.2% chance of observing an effect this large or larger assuming treatment effect is zero.
 
 summary(GeoTestBest)
 #> 

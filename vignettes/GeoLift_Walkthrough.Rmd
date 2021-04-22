@@ -37,7 +37,6 @@ library(gsynth)
 library(GeoLift)
 library(dplyr)
 library(doParallel)
-library(parallel)
 library(foreach)
 library(MarketMatching)
 ```
