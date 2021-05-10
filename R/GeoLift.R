@@ -1183,8 +1183,10 @@ stochastic_market_selector <- function(
   run_stochastic_process=FALSE
 ){
   if (!run_stochastic_process){
+    message("Deterministic setup with ", treatment_size, " locations in treatment.")
     return(similarity_matrix[, 1:treatment_size])
   } else {
+    message("Random setup with ", treatment_size, " locations in treatment.")
     if (treatment_size > 0.5*ncol(similarity_matrix)){
       stop(glue(
         "Treatment size ({treatment_size}) should be <= to half the amount of units: {ncol(similarity_matrix)}"))
