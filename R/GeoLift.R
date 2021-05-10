@@ -1183,7 +1183,7 @@ stochastic_market_selector <- function(
   run_stochastic_process=FALSE
 ){
   if (!run_stochastic_process){
-    return(similarity_matrix)
+    return(similarity_matrix[, 1:treatment_size])
   } else {
     if (treatment_size > 0.5*ncol(similarity_matrix)){
       stop(glue(
