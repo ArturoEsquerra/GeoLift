@@ -1179,24 +1179,29 @@ MarketSelection <- function(data,
 #' @export
 stochastic_market_selector <- function(
   treatment_size,
-  similarity_matrix
+  similarity_matrix,
+  run_stochastic_process=FALSE
 ){
-  if (treatment_size > 0.5*ncol(similarity_matrix)){
-    stop(glue(
-      "Treatment size ({treatment_size}) should be <= to half the amount of units: {ncol(similarity_matrix)}"))
+  if (!run_stochastic_process){
+    return(similarity_matrix)
+  } else {
+    if (treatment_size > 0.5*ncol(similarity_matrix)){
+      stop(glue(
+        "Treatment size ({treatment_size}) should be <= to half the amount of units: {ncol(similarity_matrix)}"))
+    }
+    sample_size <- round(ncol(similarity_matrix) / treatment_size)
+    sample_matrix <- c()
+    i <- 0
+    while ( (i / 2) < treatment_size){
+      sampled_number <- sample(1:2, 1) + i
+      sample_matrix <- cbind(sample_matrix, similarity_matrix[, sampled_number])
+      i <- i + 2
+    }
+    for (row in 1:nrow(sample_matrix)){ #Sort rows.
+      sample_matrix[row,] <- sort(sample_matrix[row,])
+    }
+    return(unique(sample_matrix))
   }
-  sample_size <- round(ncol(similarity_matrix) / treatment_size)
-  sample_matrix <- c()
-  i <- 0
-  while ( (i / 2) < treatment_size){
-    sampled_number <- sample(1:2, 1) + i
-    sample_matrix <- cbind(sample_matrix, similarity_matrix[, sampled_number])
-    i <- i + 2
-  }
-  for (row in 1:nrow(sample_matrix)){ #Sort rows.
-    sample_matrix[row,] <- sort(sample_matrix[row,])
-  }
-  return(unique(sample_matrix))
 }
 
 
@@ -1274,7 +1279,8 @@ GeoLiftPower.search <- function(data,
                                 model = "none",
                                 fixed_effects = TRUE,
                                 dtw = 0,
-                                ProgressBar = FALSE){
+                                ProgressBar = FALSE,
+                                run_stochastic_process = FALSE){
 
   cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = "sequential") #NEWCHANGE: Return to parallel when bug is fixed
   doParallel::registerDoParallel(cl)
@@ -1334,7 +1340,10 @@ GeoLiftPower.search <- function(data,
   }
 
   for (n in N){
-    BestMarkets_aux <- stochastic_market_selector(n, BestMarkets)
+    BestMarkets_aux <- stochastic_market_selector(
+      n, 
+      BestMarkets, 
+      run_stochastic_process=run_stochastic_process)
     for (test in 1:nrow(BestMarkets_aux)){ #iterate through lift %
       for (tp in treatment_periods){ #lifts
 
@@ -1519,7 +1528,8 @@ GeoLiftPowerFinder <- function(data,
                                fixed_effects = TRUE,
                                dtw = 0,
                                ProgressBar = FALSE,
-                               plot_best = FALSE){
+                               plot_best = FALSE,
+                               run_stochastic_process = FALSE){
 
   cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = "sequential") #NEWCHANGE: Return to parallel when bug is fixed
   doParallel::registerDoParallel(cl)
@@ -1579,7 +1589,10 @@ GeoLiftPowerFinder <- function(data,
 
 
   for (n in N){
-    BestMarkets_aux <- stochastic_market_selector(n, BestMarkets)
+    BestMarkets_aux <- stochastic_market_selector(
+      n, 
+      BestMarkets, 
+      run_stochastic_process=run_stochastic_process)
     for (es in effect_size){ #iterate through lift %
       for (tp in treatment_periods){ #lifts
 
