@@ -1158,6 +1158,55 @@ MarketSelection <- function(data,
 }
 
 
+#' Stochastic Market Selector.
+#'
+#' @description
+#'
+#' \code{build_stochastic_matrix} selects the markets to be tested
+#' by randomly sampling from the \code{similarity_matrix}.
+#' It gets groups of 2 elements and samples one of them. It repeats
+#' this process until the \code{treatment_size} is equal to the sample.
+#'
+#' @param treatment_size Is the amount of location units within the
+#' treatment group.
+#' @param similarit_matrix Matrix that sorts each location in terms 
+#' of descending correlation.
+#'
+#' @return
+#' Returns a matrix of sampled combinations of treatments.  
+#' Each row represents a different treatment.
+#'
+#' @export
+stochastic_market_selector <- function(
+  treatment_size,
+  similarity_matrix,
+  run_stochastic_process=FALSE
+){
+  if (!run_stochastic_process){
+    message("Deterministic setup with ", treatment_size, " locations in treatment.")
+    return(similarity_matrix[, 1:treatment_size])
+  } else {
+    message("Random setup with ", treatment_size, " locations in treatment.")
+    if (treatment_size > 0.5*ncol(similarity_matrix)){
+      stop(glue(
+        "Treatment size ({treatment_size}) should be <= to half the amount of units: {ncol(similarity_matrix)}"))
+    }
+    sample_size <- round(ncol(similarity_matrix) / treatment_size)
+    sample_matrix <- c()
+    i <- 0
+    while ( (i / 2) < treatment_size){
+      sampled_number <- sample(1:2, 1) + i
+      sample_matrix <- cbind(sample_matrix, similarity_matrix[, sampled_number])
+      i <- i + 2
+    }
+    for (row in 1:nrow(sample_matrix)){ #Sort rows.
+      sample_matrix[row,] <- sort(sample_matrix[row,])
+    }
+    return(unique(sample_matrix))
+  }
+}
+
+
 #' Power calculations for unknown test market locations, number of
 #' test markets, and test duration.
 #'
@@ -1232,7 +1281,8 @@ GeoLiftPower.search <- function(data,
                                 model = "none",
                                 fixed_effects = TRUE,
                                 dtw = 0,
-                                ProgressBar = FALSE){
+                                ProgressBar = FALSE,
+                                run_stochastic_process = FALSE){
 
   cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = "sequential") #NEWCHANGE: Return to parallel when bug is fixed
   doParallel::registerDoParallel(cl)
@@ -1292,7 +1342,10 @@ GeoLiftPower.search <- function(data,
   }
 
   for (n in N){
-    BestMarkets_aux <- BestMarkets[,1:n]
+    BestMarkets_aux <- stochastic_market_selector(
+      n, 
+      BestMarkets, 
+      run_stochastic_process=run_stochastic_process)
     for (test in 1:nrow(BestMarkets_aux)){ #iterate through lift %
       for (tp in treatment_periods){ #lifts
 
@@ -1477,7 +1530,8 @@ GeoLiftPowerFinder <- function(data,
                                fixed_effects = TRUE,
                                dtw = 0,
                                ProgressBar = FALSE,
-                               plot_best = FALSE){
+                               plot_best = FALSE,
+                               run_stochastic_process = FALSE){
 
   cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = "sequential") #NEWCHANGE: Return to parallel when bug is fixed
   doParallel::registerDoParallel(cl)
@@ -1537,7 +1591,10 @@ GeoLiftPowerFinder <- function(data,
 
 
   for (n in N){
-    BestMarkets_aux <- BestMarkets[,1:n]
+    BestMarkets_aux <- stochastic_market_selector(
+      n, 
+      BestMarkets, 
+      run_stochastic_process=run_stochastic_process)
     for (es in effect_size){ #iterate through lift %
       for (tp in treatment_periods){ #lifts
 
