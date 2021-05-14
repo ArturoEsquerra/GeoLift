@@ -23,7 +23,7 @@ Description: GeoLift is an end-to-end solution to measure lift at
 License: 
     GPL (>= 2)
 Depends:
-    R (>= 4.0.0)
+    R (>= 3.6.2)
 Imports:
     augsynth,
     gsynth,
