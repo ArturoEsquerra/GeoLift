@@ -21,7 +21,8 @@ GeoLiftPowerFinder(
   fixed_effects = TRUE,
   dtw = 0,
   ProgressBar = FALSE,
-  plot_best = FALSE
+  plot_best = FALSE,
+  run_stochastic_process = FALSE
 )
 }
 \arguments{
@@ -77,6 +78,14 @@ to track progress. Set to FALSE by default.}
 
 \item{plot_best}{A logic flag indicating whether to plot the best 4 tests for
 each treatment length. Set to FALSE by default.}
+
+\item{run_stochastic_process}{A logic flag indicating whether to select test
+markets through random sampling of the the similarity matrix. Given that
+interpolation biases may be relevant if the synthetic control matches
+the characteristics of the test unit by averaging away large discrepancies
+between the characteristics of the test and the units in the synthetic controls,
+it is recommended to only use random sampling after making sure all units are
+similar. This parameter is set by default to FALSE.}
 }
 \value{
 Data frame with the ordered list of best locations and their

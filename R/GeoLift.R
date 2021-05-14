@@ -1169,18 +1169,25 @@ MarketSelection <- function(data,
 #'
 #' @param treatment_size Is the amount of location units within the
 #' treatment group.
-#' @param similarit_matrix Matrix that sorts each location in terms 
+#' @param similarity_matrix Matrix that sorts each location in terms
 #' of descending correlation.
+#' @param run_stochastic_process A logic flag indicating whether to select test
+#' markets through random sampling of the the similarity matrix. Given that
+#' interpolation biases may be relevant if the synthetic control matches
+#' the characteristics of the test unit by averaging away large discrepancies
+#' between the characteristics of the test and the units in the synthetic controls,
+#' it is recommended to only use random sampling after making sure all units are
+#' similar. This parameter is set by default to FALSE.
 #'
 #' @return
-#' Returns a matrix of sampled combinations of treatments.  
+#' Returns a matrix of sampled combinations of treatments.
 #' Each row represents a different treatment.
 #'
 #' @export
 stochastic_market_selector <- function(
   treatment_size,
   similarity_matrix,
-  run_stochastic_process=FALSE
+  run_stochastic_process = FALSE
 ){
   if (!run_stochastic_process){
     message("Deterministic setup with ", treatment_size, " locations in treatment.")
@@ -1188,8 +1195,11 @@ stochastic_market_selector <- function(
   } else {
     message("Random setup with ", treatment_size, " locations in treatment.")
     if (treatment_size > 0.5*ncol(similarity_matrix)){
-      stop(glue(
-        "Treatment size ({treatment_size}) should be <= to half the amount of units: {ncol(similarity_matrix)}"))
+      stop(paste0(
+        "Treatment size (",
+        treatment_size,
+        ") should be <= to half the amount of units: ",
+        ncol(similarity_matrix)))
     }
     sample_size <- round(ncol(similarity_matrix) / treatment_size)
     sample_matrix <- c()
@@ -1260,6 +1270,13 @@ stochastic_market_selector <- function(
 #' on this metric while dtw = 0 (default) relies on correlations only.
 #' @param ProgressBar A logic flag indicating whether to display a progress bar
 #' to track progress. Set to FALSE by default.
+#' @param run_stochastic_process A logic flag indicating whether to select test
+#' markets through random sampling of the the similarity matrix. Given that
+#' interpolation biases may be relevant if the synthetic control matches
+#' the characteristics of the test unit by averaging away large discrepancies
+#' between the characteristics of the test and the units in the synthetic controls,
+#' it is recommended to only use random sampling after making sure all units are
+#' similar. This parameter is set by default to FALSE.
 #'
 #' @return
 #' Data frame with the ordered list of best locations and their
@@ -1343,8 +1360,8 @@ GeoLiftPower.search <- function(data,
 
   for (n in N){
     BestMarkets_aux <- stochastic_market_selector(
-      n, 
-      BestMarkets, 
+      n,
+      BestMarkets,
       run_stochastic_process=run_stochastic_process)
     for (test in 1:nrow(BestMarkets_aux)){ #iterate through lift %
       for (tp in treatment_periods){ #lifts
@@ -1509,6 +1526,13 @@ GeoLiftPower.search <- function(data,
 #' to track progress. Set to FALSE by default.
 #' @param plot_best A logic flag indicating whether to plot the best 4 tests for
 #' each treatment length. Set to FALSE by default.
+#' @param run_stochastic_process A logic flag indicating whether to select test
+#' markets through random sampling of the the similarity matrix. Given that
+#' interpolation biases may be relevant if the synthetic control matches
+#' the characteristics of the test unit by averaging away large discrepancies
+#' between the characteristics of the test and the units in the synthetic controls,
+#' it is recommended to only use random sampling after making sure all units are
+#' similar. This parameter is set by default to FALSE.
 #'
 #' @return
 #' Data frame with the ordered list of best locations and their
@@ -1592,8 +1616,8 @@ GeoLiftPowerFinder <- function(data,
 
   for (n in N){
     BestMarkets_aux <- stochastic_market_selector(
-      n, 
-      BestMarkets, 
+      n,
+      BestMarkets,
       run_stochastic_process=run_stochastic_process)
     for (es in effect_size){ #iterate through lift %
       for (tp in treatment_periods){ #lifts
