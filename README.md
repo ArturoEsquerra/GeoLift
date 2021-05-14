@@ -26,6 +26,7 @@ devtools::install_github("ArturoEsquerra/GeoLift")
 ## Contacts
 - aesquerra@fb.com, Arturo Esquerra, Facebook Marketing Science Partner
 - kpanchal@fb.com, Kanishka Panchal, Facebook Marketing Science Partner
+- nicocru@fb.com, Nicolas Cruces, Facebook Marketing Science Partner
 
 ## Usage
 This package was developed under the MIT open-source license and is not an official Facebook product.
