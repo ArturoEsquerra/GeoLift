@@ -16,7 +16,8 @@ pvalueCalc(
   type = "pValue",
   normalize = FALSE,
   fixed_effects = FALSE,
-  model = "GSYN"
+  stat_func = stat_func,
+  model = "none"
 )
 }
 \arguments{
@@ -52,8 +53,10 @@ default is FALSE.}
 \item{fixed_effects}{A logic flag indicating whether to include unit fixed
 effects in the model. Set to FALSE by default.}
 
+\item{stat_func}{Function to compute test statistic. NULL by default.}
+
 \item{model}{A string indicating the outcome model used in the Augmented Synthetic
-Control Method. Set to Generalized Synthetic Controls "GSYN" by default.}
+Control Method. Set to Generalized Synthetic Controls "none" by default.}
 }
 \value{
 List that contains:
