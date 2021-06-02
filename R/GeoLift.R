@@ -1462,13 +1462,13 @@ GeoLiftPower.search <- function(data,
     resultsM <- resultsM %>%
       dplyr::arrange(dplyr::desc(mean_pow),
                      mean_scaled_l2_imbalance,
-                     dply::desc(ProportionTotal_Y))
+                     dplyr::desc(ProportionTotal_Y))
 
   } else if (type == "Imbalance") {
 
     resultsM <- resultsM %>%
       dplyr::arrange(mean_scaled_l2_imbalance,
-                     dply::desc(ProportionTotal_Y))
+                     dplyr::desc(ProportionTotal_Y))
 
   }
 
