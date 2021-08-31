@@ -204,6 +204,9 @@ GeoDataRead <- function(data,
 
   #Remove revenue with zeroes
   #data <- filter(data, Y > 0)
+  
+  # Remove null conversion values
+  data <- data[!is.na(data$Y), ]
 
   # Remove cities with missing time periods
   total_periods <- max(data$time)
