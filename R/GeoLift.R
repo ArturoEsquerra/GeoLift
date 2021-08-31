@@ -204,6 +204,9 @@ GeoDataRead <- function(data,
 
   #Remove revenue with zeroes
   #data <- filter(data, Y > 0)
+  
+  # Remove null conversion values
+  data <- data[!is.na(data$Y), ]
 
   # Remove cities with missing time periods
   total_periods <- max(data$time)
@@ -1374,7 +1377,7 @@ GeoLiftPower.search <- function(data,
       n,
       BestMarkets,
       run_stochastic_process=run_stochastic_process)
-    for (test in 1:nrow(BestMarkets_aux)){ #iterate through lift %
+    for (test in 1:nrow(as.matrix(BestMarkets_aux))){ #iterate through lift %
       for (tp in treatment_periods){ #lifts
 
         if(ProgressBar == TRUE){
@@ -1392,7 +1395,7 @@ GeoLiftPower.search <- function(data,
                          max_time = max_time,
                          tp = tp,
                          es = 0,
-                         locations = as.list(BestMarkets_aux[test,]),
+                         locations = as.list(as.matrix(BestMarkets_aux)[test,]),
                          cpic = 0,
                          X,
                          type = type,
@@ -1632,7 +1635,7 @@ GeoLiftPowerFinder <- function(data,
     BestMarkets_aux <- stochastic_market_selector(
       n,
       BestMarkets,
-      run_stochastic_process=run_stochastic_process)
+      run_stochastic_process = run_stochastic_process)
     for (es in effect_size){ #iterate through lift %
       for (tp in treatment_periods){ #lifts
 
@@ -1640,7 +1643,7 @@ GeoLiftPowerFinder <- function(data,
           pb$tick()
         }
 
-        a <- foreach(test = 1:nrow(BestMarkets_aux), #NEWCHANGE: Horizon = earliest start time for simulations
+        a <- foreach(test = 1:nrow(as.matrix(BestMarkets_aux)), #NEWCHANGE: Horizon = earliest start time for simulations
                      .combine=cbind,
                      .errorhandling = 'remove') %dopar% {
                        pvalueCalc(
@@ -1649,7 +1652,7 @@ GeoLiftPowerFinder <- function(data,
                          max_time = max_time,
                          tp = tp,
                          es = es,
-                         locations = as.list(BestMarkets_aux[test,]),
+                         locations = as.list(as.matrix(BestMarkets_aux)[test,]),
                          cpic = 0,
                          X,
                          type = "pValue",
