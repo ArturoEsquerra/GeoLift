@@ -117,7 +117,7 @@ GeoDataRead <- function(data,
   } else if(str_count(format, pattern = fixed("-")) > 0) {
     sep <- "-"
   } else if(str_count(format, pattern = fixed(".")) > 0) {
-    sep = "."
+    sep = "\\."
   } else {
     sep <- ""
   }
