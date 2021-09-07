@@ -204,7 +204,7 @@ GeoDataRead <- function(data,
 
   #Remove revenue with zeroes
   #data <- filter(data, Y > 0)
-  
+
   # Remove null conversion values
   data <- data[!is.na(data$Y), ]
 
@@ -1839,6 +1839,15 @@ GeoLiftPowerFinder <- function(data,
 #' effects in the model. Set to TRUE by default.
 #' @param ConfidenceIntervals A logic flag indicating whether to estimate confidence intervals
 #' through jackknifing techniques.  Set to FALSE by default.
+#' @param stat_test A string indicating the test statistic.
+#' \itemize{
+#'          \item{"Total":}{ The test statistic is the sum of all treatment effects, i.e. sum(abs(x)). Default.}
+#'          \item{"Negative":}{ One-way test against positive effects i.e. -sum(x).
+#'          Recommended for Negative Lift tests.}
+#'          \item{"Positive":}{ One-way test against negative effects i.e. sum(x).
+#'          Recommended for Positive Lift tests.}
+#'          \item{"Average":}{ Test against the average post-treatment effect i.e. abs(sum(x)).}
+#' }
 #' @param print A logic flag indicating whether to print the results or not.
 #' Set to TRUE by default.
 #'
@@ -1876,6 +1885,7 @@ GeoLift <- function(Y_id = "Y",
                     model = "none",
                     fixed_effects = TRUE,
                     ConfidenceIntervals = FALSE,
+                    stat_test = "Total",
                     print = TRUE){
 
   # Rename variables to standard names used by GeoLift
@@ -1975,7 +1985,15 @@ GeoLift <- function(Y_id = "Y",
                               "Upper.Conf.Int")
 
   #NEWCHANGE: To avoid running the time-consuming summary process, create and store the object for re-use
-  sum_augsyn <- summary(augsyn, alpha = alpha)
+  if(tolower(stat_test) == "negative"){
+    sum_augsyn <- summary(augsyn, alpha = alpha, stat_func = function(x) -sum(x))
+  } else if(tolower(stat_test) == "positive"){
+    sum_augsyn <- summary(augsyn, alpha = alpha, stat_func = function(x) sum(x))
+  } else if(tolower(stat_test) == "average"){
+    sum_augsyn <- summary(augsyn, alpha = alpha, stat_func = function(x) abs(sum(x)))
+  } else {
+    sum_augsyn <- summary(augsyn, alpha = alpha)
+  }
 
   if(paste(augsyn$call)[1] == "single_augsynth"){
     mean <- sum_augsyn[['average_att']][['Estimate']] #Use summary object
@@ -2060,7 +2078,7 @@ GeoLift <- function(Y_id = "Y",
       100 * round(lift, 3), "%\n\n",
       "Incremental ", paste(Y_id), ": ", round(incremental,0), "\n\n",
       "Average Estimated Treatment Effect (ATT): ", round(mean, 3),
-      "\n\n",significant,
+      "\n\n",significant, " (", toupper(stat_test), ")",
       "\n\nThere is a ", round(100 * inference_df$pvalue, 2),
       "% chance of observing an effect this large or larger assuming treatment effect is zero.",
       sep="")
