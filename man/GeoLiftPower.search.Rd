@@ -23,7 +23,8 @@ GeoLiftPower.search(
   stat_func = NULL,
   dtw = 0,
   ProgressBar = FALSE,
-  run_stochastic_process = FALSE
+  run_stochastic_process = FALSE,
+  parallel = TRUE
 )
 }
 \arguments{
@@ -97,6 +98,9 @@ the characteristics of the test unit by averaging away large discrepancies
 between the characteristics of the test and the units in the synthetic controls,
 it is recommended to only use random sampling after making sure all units are
 similar. This parameter is set by default to FALSE.}
+
+\item{parallel}{A logic flag indicating whether to use parallel computing to
+speed up calculations. Set to TRUE by default.}
 }
 \value{
 Data frame with the ordered list of best locations and their
