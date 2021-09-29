@@ -945,6 +945,8 @@ plot.GeoLiftPower <- function(x,
 #' to track progress. Set to FALSE by default.
 #' @param parallel A logic flag indicating whether to use parallel computing to
 #' speed up calculations. Set to TRUE by default.
+#' @param parallel_setup A string indicating parallel workers set-up.
+#' Set to "sequential" by default.
 #'
 #' @return
 #' Table of average power by number of locations.
@@ -967,10 +969,18 @@ NumberLocations <- function(data,
                             fixed_effects = TRUE,
                             stat_func = NULL,
                             ProgressBar = FALSE,
-                            parallel = TRUE){
+                            parallel = TRUE,
+                            parallel_setup = "sequential"){
 
   if (parallel == TRUE){
-    cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = "sequential") #NEWCHANGE: Return to parallel when bug is fixed
+    if (parallel_setup == "sequential"){
+      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup)
+    } else if (parallel_setup == "parallel"){
+      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup, setup_timeout = 0.5)
+    } else {
+      stop('Please specify a valid set-up')
+    }
+
     doParallel::registerDoParallel(cl)
 
     parallel::clusterCall(cl, function()
@@ -1323,6 +1333,8 @@ stochastic_market_selector <- function(
 #' similar. This parameter is set by default to FALSE.
 #' @param parallel A logic flag indicating whether to use parallel computing to
 #' speed up calculations. Set to TRUE by default.
+#' @param parallel_setup A string indicating parallel workers set-up.
+#' Set to "sequential" by default.
 #'
 #' @return
 #' Data frame with the ordered list of best locations and their
@@ -1347,10 +1359,18 @@ GeoLiftPower.search <- function(data,
                                 dtw = 0,
                                 ProgressBar = FALSE,
                                 run_stochastic_process = FALSE,
-                                parallel = TRUE){
+                                parallel = TRUE,
+                                parallel_setup = "sequential"){
 
   if (parallel == TRUE){
-    cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = "sequential") #NEWCHANGE: Return to parallel when bug is fixed
+    if (parallel_setup == "sequential"){
+      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup)
+    } else if (parallel_setup == "parallel"){
+      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup, setup_timeout = 0.5)
+    } else {
+      stop('Please specify a valid set-up')
+    }
+
     doParallel::registerDoParallel(cl)
 
     parallel::clusterCall(cl, function()
@@ -1614,6 +1634,8 @@ GeoLiftPower.search <- function(data,
 #' similar. This parameter is set by default to FALSE.
 #' @param parallel A logic flag indicating whether to use parallel computing to
 #' speed up calculations. Set to TRUE by default.
+#' @param parallel_setup A string indicating parallel workers set-up.
+#' Set to "sequential" by default.
 #'
 #' @return
 #' Data frame with the ordered list of best locations and their
@@ -1638,10 +1660,18 @@ GeoLiftPowerFinder <- function(data,
                                ProgressBar = FALSE,
                                plot_best = FALSE,
                                run_stochastic_process = FALSE,
-                               parallel = TRUE){
+                               parallel = TRUE,
+                               parallel_setup = "sequential"){
 
   if (parallel == TRUE){
-    cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = "sequential") #NEWCHANGE: Return to parallel when bug is fixed
+    if (parallel_setup == "sequential"){
+      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup)
+    } else if (parallel_setup == "parallel"){
+      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup, setup_timeout = 0.5)
+    } else {
+      stop('Please specify a valid set-up')
+    }
+
     doParallel::registerDoParallel(cl)
 
     parallel::clusterCall(cl, function()

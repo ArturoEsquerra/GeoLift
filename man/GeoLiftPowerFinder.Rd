@@ -24,7 +24,8 @@ GeoLiftPowerFinder(
   ProgressBar = FALSE,
   plot_best = FALSE,
   run_stochastic_process = FALSE,
-  parallel = TRUE
+  parallel = TRUE,
+  parallel_setup = "sequential"
 )
 }
 \arguments{
@@ -93,6 +94,9 @@ similar. This parameter is set by default to FALSE.}
 
 \item{parallel}{A logic flag indicating whether to use parallel computing to
 speed up calculations. Set to TRUE by default.}
+
+\item{parallel_setup}{A string indicating parallel workers set-up.
+Set to "sequential" by default.}
 }
 \value{
 Data frame with the ordered list of best locations and their

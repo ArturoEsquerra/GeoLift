@@ -23,7 +23,8 @@ NumberLocations(
   fixed_effects = TRUE,
   stat_func = NULL,
   ProgressBar = FALSE,
-  parallel = TRUE
+  parallel = TRUE,
+  parallel_setup = "sequential"
 )
 }
 \arguments{
@@ -86,6 +87,9 @@ to track progress. Set to FALSE by default.}
 
 \item{parallel}{A logic flag indicating whether to use parallel computing to
 speed up calculations. Set to TRUE by default.}
+
+\item{parallel_setup}{A string indicating parallel workers set-up.
+Set to "sequential" by default.}
 }
 \value{
 Table of average power by number of locations.
