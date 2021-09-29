@@ -943,6 +943,10 @@ plot.GeoLiftPower <- function(x,
 #' @param stat_func Function to compute test statistic. NULL by default.
 #' @param ProgressBar A logic flag indicating whether to display a progress bar
 #' to track progress. Set to FALSE by default.
+#' @param parallel A logic flag indicating whether to use parallel computing to
+#' speed up calculations. Set to TRUE by default.
+#' @param parallel_setup A string indicating parallel workers set-up.
+#' Set to "sequential" by default.
 #'
 #' @return
 #' Table of average power by number of locations.
@@ -964,23 +968,34 @@ NumberLocations <- function(data,
                             model = "none",
                             fixed_effects = TRUE,
                             stat_func = NULL,
-                            ProgressBar = FALSE){
+                            ProgressBar = FALSE,
+                            parallel = TRUE,
+                            parallel_setup = "sequential"){
 
-  cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = "sequential") #NEWCHANGE: Return to parallel when bug is fixed
-  doParallel::registerDoParallel(cl)
+  if (parallel == TRUE){
+    if (parallel_setup == "sequential"){
+      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup)
+    } else if (parallel_setup == "parallel"){
+      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup, setup_timeout = 0.5)
+    } else {
+      stop('Please specify a valid set-up')
+    }
 
-  parallel::clusterCall(cl, function()
-    attachNamespace('augsynth'))
-  parallel::clusterCall(cl, function()
-    attachNamespace('dplyr'))
-  parallel::clusterCall(cl, function()
-    attachNamespace('tidyr'))
+    doParallel::registerDoParallel(cl)
 
-  parallel::clusterExport(
-    cl,
-    c('fn_treatment','pvalueCalc'),
-    envir=environment()
-  )
+    parallel::clusterCall(cl, function()
+      attachNamespace('augsynth'))
+    parallel::clusterCall(cl, function()
+      attachNamespace('dplyr'))
+    parallel::clusterCall(cl, function()
+      attachNamespace('tidyr'))
+
+    parallel::clusterExport(
+      cl,
+      c('fn_treatment','pvalueCalc'),
+      envir=environment()
+    )
+  }
 
   # Part 1: Treatment and pre-treatment periods
   data <- data %>% dplyr::rename(Y = paste(Y_id), location = paste(location_id), time = paste(time_id))
@@ -1021,37 +1036,63 @@ NumberLocations <- function(data,
       pb$tick()
     }
 
-    a <- foreach(sim = 1:n_sim,
-                 .combine=cbind,
-                 .errorhandling = 'remove') %dopar% {
-                   pvalueCalc(
-                     data = data,
-                     sim = 1,
-                     max_time = max_time,#max_time,
-                     tp = treatment_periods,
-                     es = 0,
-                     locations = as.list(sample(locs,n, replace = FALSE )),
-                     cpic = 0,
-                     X = c(),
-                     type = type,
-                     normalize = normalize,
-                     fixed_effects = fixed_effects,
-                     model = model,
-                     stat_func = stat_func)
+    if (parallel == TRUE){
+      a <- foreach(sim = 1:n_sim,
+                   .combine=cbind,
+                   .errorhandling = 'remove') %dopar% {
+                     pvalueCalc(
+                       data = data,
+                       sim = 1,
+                       max_time = max_time,#max_time,
+                       tp = treatment_periods,
+                       es = 0,
+                       locations = as.list(sample(locs,n, replace = FALSE )),
+                       cpic = 0,
+                       X = c(),
+                       type = type,
+                       normalize = normalize,
+                       fixed_effects = fixed_effects,
+                       model = model,
+                       stat_func = stat_func)
 
-                 }
+                   }
 
-    for (i in 1:ncol(a)) {
-      results <- rbind(results, data.frame(location = a[[1,i]],
-                                           pvalue = as.numeric(a[[2,i]]),
-                                           n = n,
-                                           treatment_start = as.numeric(a[[5,i]]),
-                                           ScaledL2Imbalance = as.numeric(a[[7,i]]) ) )
+      for (i in 1:ncol(a)) {
+        results <- rbind(results, data.frame(location = a[[1,i]],
+                                             pvalue = as.numeric(a[[2,i]]),
+                                             n = n,
+                                             treatment_start = as.numeric(a[[5,i]]),
+                                             ScaledL2Imbalance = as.numeric(a[[7,i]]) ) )
+      }
+    } else {
+      for (sim in 1:n_sim){
+        aux <- NULL
+        aux <- suppressMessages(pvalueCalc(data = data,
+                                           sim = 1,
+                                           max_time = max_time,#max_time,
+                                           tp = treatment_periods,
+                                           es = 0,
+                                           locations = as.list(sample(locs,n, replace = FALSE )),
+                                           cpic = 0,
+                                           X = c(),
+                                           type = type,
+                                           normalize = normalize,
+                                           fixed_effects = fixed_effects,
+                                           model = model,
+                                           stat_func = stat_func))
+
+        results <- rbind(results, data.frame(location = aux[1],
+                                             pvalue = as.numeric(aux[2]),
+                                             n = n,
+                                             treatment_start = as.numeric(aux[5]),
+                                             ScaledL2Imbalance = as.numeric(aux[7])))
+      }
     }
-    #}
   }
 
-  parallel::stopCluster(cl)
+  if (parallel == TRUE){
+    parallel::stopCluster(cl)
+  }
 
   if(plot == TRUE){
     results$pow <- 0
@@ -1290,6 +1331,10 @@ stochastic_market_selector <- function(
 #' between the characteristics of the test and the units in the synthetic controls,
 #' it is recommended to only use random sampling after making sure all units are
 #' similar. This parameter is set by default to FALSE.
+#' @param parallel A logic flag indicating whether to use parallel computing to
+#' speed up calculations. Set to TRUE by default.
+#' @param parallel_setup A string indicating parallel workers set-up.
+#' Set to "sequential" by default.
 #'
 #' @return
 #' Data frame with the ordered list of best locations and their
@@ -1313,23 +1358,34 @@ GeoLiftPower.search <- function(data,
                                 stat_func = NULL,
                                 dtw = 0,
                                 ProgressBar = FALSE,
-                                run_stochastic_process = FALSE){
+                                run_stochastic_process = FALSE,
+                                parallel = TRUE,
+                                parallel_setup = "sequential"){
 
-  cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = "sequential") #NEWCHANGE: Return to parallel when bug is fixed
-  doParallel::registerDoParallel(cl)
+  if (parallel == TRUE){
+    if (parallel_setup == "sequential"){
+      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup)
+    } else if (parallel_setup == "parallel"){
+      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup, setup_timeout = 0.5)
+    } else {
+      stop('Please specify a valid set-up')
+    }
 
-  parallel::clusterCall(cl, function()
-    attachNamespace('augsynth'))
-  parallel::clusterCall(cl, function()
-    attachNamespace('dplyr'))
-  parallel::clusterCall(cl, function()
-    attachNamespace('tidyr'))
+    doParallel::registerDoParallel(cl)
 
-  parallel::clusterExport(
-    cl,
-    c('fn_treatment','pvalueCalc', 'MarketSelection'),
-    envir=environment()
-  )
+    parallel::clusterCall(cl, function()
+      attachNamespace('augsynth'))
+    parallel::clusterCall(cl, function()
+      attachNamespace('dplyr'))
+    parallel::clusterCall(cl, function()
+      attachNamespace('tidyr'))
+
+    parallel::clusterExport(
+      cl,
+      c('fn_treatment','pvalueCalc', 'MarketSelection'),
+      envir=environment()
+    )
+  }
 
   # Part 1: Treatment and pre-treatment periods
   data <- data %>% dplyr::rename(Y = paste(Y_id), location = paste(location_id), time = paste(time_id))
@@ -1386,43 +1442,70 @@ GeoLiftPower.search <- function(data,
 
         t_n <- max(data$time) - tp + 1 #Number of simulations without extrapolation (latest start time possible for #tp)
 
-        a <- foreach(sim = 1:(t_n - horizon + 1), #NEWCHANGE: Horizon = earliest start time for simulations
-                     .combine=cbind,
-                     .errorhandling = 'remove') %dopar% {
-                       pvalueCalc(
-                         data = data,
-                         sim = sim,
-                         max_time = max_time,
-                         tp = tp,
-                         es = 0,
-                         locations = as.list(as.matrix(BestMarkets_aux)[test,]),
-                         cpic = 0,
-                         X,
-                         type = type,
-                         normalize = normalize,
-                         fixed_effects = fixed_effects,
-                         model = model,
-                         stat_func = stat_func)
+        if (parallel == TRUE){
+          a <- foreach(sim = 1:(t_n - horizon + 1), #NEWCHANGE: Horizon = earliest start time for simulations
+                       .combine=cbind,
+                       .errorhandling = 'remove') %dopar% {
+                         pvalueCalc(
+                           data = data,
+                           sim = sim,
+                           max_time = max_time,
+                           tp = tp,
+                           es = 0,
+                           locations = as.list(as.matrix(BestMarkets_aux)[test,]),
+                           cpic = 0,
+                           X,
+                           type = type,
+                           normalize = normalize,
+                           fixed_effects = fixed_effects,
+                           model = model,
+                           stat_func = stat_func)
 
-                     }
+                       }
 
-        for (i in 1:ncol(a)) {
-          results <- rbind(results, data.frame(location=a[[1,i]],
-                                               pvalue = as.numeric(a[[2,i]]),
-                                               duration = as.numeric(a[[3,i]]),
-                                               treatment_start = as.numeric(a[[5,i]]),
-                                               ScaledL2Imbalance = as.numeric(a[[7,i]]) ) )
+          for (i in 1:ncol(a)) {
+            results <- rbind(results, data.frame(location=a[[1,i]],
+                                                 pvalue = as.numeric(a[[2,i]]),
+                                                 duration = as.numeric(a[[3,i]]),
+                                                 treatment_start = as.numeric(a[[5,i]]),
+                                                 ScaledL2Imbalance = as.numeric(a[[7,i]]) ) )
+          }
+        } else{
+
+          for (sim in 1:(t_n - horizon + 1)){
+            aux <- NULL
+            aux <- suppressMessages(pvalueCalc(data = data,
+                                               sim = sim,
+                                               max_time = max_time,
+                                               tp = tp,
+                                               es = 0,
+                                               locations = as.list(as.matrix(BestMarkets_aux)[test,]),
+                                               cpic = 0,
+                                               X,
+                                               type = type,
+                                               normalize = normalize,
+                                               fixed_effects = fixed_effects,
+                                               model = model,
+                                               stat_func = stat_func))
+
+            results <- rbind(results, data.frame(location=aux[1],
+                                                 pvalue = as.numeric(aux[2]),
+                                                 duration = as.numeric(aux[3]),
+                                                 treatment_start = as.numeric(aux[5]),
+                                                 ScaledL2Imbalance = as.numeric(aux[7]) ) )
+
+          }
         }
-
-
       }
     }
   }
 
-  parallel::stopCluster(cl)
+  if (parallel == TRUE){
+    parallel::stopCluster(cl)
+  }
 
   # Sort Locations alphabetically
-  results$location <- strsplit(str_replace_all(results$location, ", ", ","),split = ",")
+  results$location <- strsplit(stringr::str_replace_all(results$location, ", ", ","),split = ",")
   results$location <- lapply(results$location, sort)
   results$location <- lapply(results$location, function(x) paste(x, collapse = ", "))
   results$location <- unlist(results$location)
@@ -1450,7 +1533,7 @@ GeoLiftPower.search <- function(data,
 
   # Add Percent of Y in test markets
   resultsM$ProportionTotal_Y <- 1
-  resultsM$Locs <- strsplit(str_replace_all(resultsM$location, ", ", ","),split = ",")
+  resultsM$Locs <- strsplit(stringr::str_replace_all(resultsM$location, ", ", ","),split = ",")
 
   for (row in 1:nrow(resultsM)) {
     resultsM$ProportionTotal_Y[row] <- as.numeric(AggYperLoc %>%
@@ -1549,6 +1632,10 @@ GeoLiftPower.search <- function(data,
 #' between the characteristics of the test and the units in the synthetic controls,
 #' it is recommended to only use random sampling after making sure all units are
 #' similar. This parameter is set by default to FALSE.
+#' @param parallel A logic flag indicating whether to use parallel computing to
+#' speed up calculations. Set to TRUE by default.
+#' @param parallel_setup A string indicating parallel workers set-up.
+#' Set to "sequential" by default.
 #'
 #' @return
 #' Data frame with the ordered list of best locations and their
@@ -1572,23 +1659,34 @@ GeoLiftPowerFinder <- function(data,
                                dtw = 0,
                                ProgressBar = FALSE,
                                plot_best = FALSE,
-                               run_stochastic_process = FALSE){
+                               run_stochastic_process = FALSE,
+                               parallel = TRUE,
+                               parallel_setup = "sequential"){
 
-  cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = "sequential") #NEWCHANGE: Return to parallel when bug is fixed
-  doParallel::registerDoParallel(cl)
+  if (parallel == TRUE){
+    if (parallel_setup == "sequential"){
+      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup)
+    } else if (parallel_setup == "parallel"){
+      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup, setup_timeout = 0.5)
+    } else {
+      stop('Please specify a valid set-up')
+    }
 
-  parallel::clusterCall(cl, function()
-    attachNamespace('augsynth'))
-  parallel::clusterCall(cl, function()
-    attachNamespace('dplyr'))
-  parallel::clusterCall(cl, function()
-    attachNamespace('tidyr'))
+    doParallel::registerDoParallel(cl)
 
-  parallel::clusterExport(
-    cl,
-    c('fn_treatment','pvalueCalc', 'MarketSelection'),
-    envir=environment()
-  )
+    parallel::clusterCall(cl, function()
+      attachNamespace('augsynth'))
+    parallel::clusterCall(cl, function()
+      attachNamespace('dplyr'))
+    parallel::clusterCall(cl, function()
+      attachNamespace('tidyr'))
+
+    parallel::clusterExport(
+      cl,
+      c('fn_treatment','pvalueCalc', 'MarketSelection'),
+      envir=environment()
+    )
+  }
 
   # Part 1: Treatment and pre-treatment periods
   data <- data %>% dplyr::rename(Y = paste(Y_id), location = paste(location_id), time = paste(time_id))
@@ -1643,44 +1741,72 @@ GeoLiftPowerFinder <- function(data,
           pb$tick()
         }
 
-        a <- foreach(test = 1:nrow(as.matrix(BestMarkets_aux)), #NEWCHANGE: Horizon = earliest start time for simulations
-                     .combine=cbind,
-                     .errorhandling = 'remove') %dopar% {
-                       pvalueCalc(
-                         data = data,
-                         sim = 1,
-                         max_time = max_time,
-                         tp = tp,
-                         es = es,
-                         locations = as.list(as.matrix(BestMarkets_aux)[test,]),
-                         cpic = 0,
-                         X,
-                         type = "pValue",
-                         normalize = normalize,
-                         fixed_effects = fixed_effects,
-                         model = model,
-                         stat_func = stat_func)
+        if (parallel == TRUE){
+          a <- foreach(test = 1:nrow(as.matrix(BestMarkets_aux)), #NEWCHANGE: Horizon = earliest start time for simulations
+                       .combine=cbind,
+                       .errorhandling = 'remove') %dopar% {
+                         pvalueCalc(
+                           data = data,
+                           sim = 1,
+                           max_time = max_time,
+                           tp = tp,
+                           es = es,
+                           locations = as.list(as.matrix(BestMarkets_aux)[test,]),
+                           cpic = 0,
+                           X,
+                           type = "pValue",
+                           normalize = normalize,
+                           fixed_effects = fixed_effects,
+                           model = model,
+                           stat_func = stat_func)
 
-                     }
+                       }
 
-        for (i in 1:ncol(a)) {
-          results <- rbind(results, data.frame(location = a[[1,i]],
-                                               pvalue = as.numeric(a[[2,i]]),
-                                               duration = as.numeric(a[[3,i]]),
-                                               lift = as.numeric(a[[4,i]]),
-                                               treatment_start = as.numeric(a[[5,i]]),
-                                               ScaledL2Imbalance = as.numeric(a[[7,i]]) ) )
+          for (i in 1:ncol(a)) {
+            results <- rbind(results, data.frame(location = a[[1,i]],
+                                                 pvalue = as.numeric(a[[2,i]]),
+                                                 duration = as.numeric(a[[3,i]]),
+                                                 lift = as.numeric(a[[4,i]]),
+                                                 treatment_start = as.numeric(a[[5,i]]),
+                                                 ScaledL2Imbalance = as.numeric(a[[7,i]]) ) )
+          }
+        } else{
+          for (test in 1:nrow(as.matrix(BestMarkets_aux))) {
+            aux <- NULL
+            aux <- suppressMessages(pvalueCalc(
+              data = data,
+              sim = 1,
+              max_time = max_time,
+              tp = tp,
+              es = es,
+              locations = as.list(as.matrix(BestMarkets_aux)[test,]),
+              cpic = 0,
+              X,
+              type = "pValue",
+              normalize = normalize,
+              fixed_effects = fixed_effects,
+              model = model,
+              stat_func = stat_func))
+
+            results <- rbind(results, data.frame(location=aux[1],
+                                                 pvalue = as.numeric(aux[2]),
+                                                 duration = as.numeric(aux[3]),
+                                                 lift = as.numeric(aux[4]),
+                                                 treatment_start = as.numeric(aux[5]),
+                                                 ScaledL2Imbalance = as.numeric(aux[7]) ) )
+          }
         }
-
 
       }
     }
   }
 
-  parallel::stopCluster(cl)
+  if (parallel == TRUE){
+    parallel::stopCluster(cl)
+  }
 
   # Sort Locations alphabetically
-  results$location <- strsplit(str_replace_all(results$location, ", ", ","),split = ",")
+  results$location <- strsplit(stringr::str_replace_all(results$location, ", ", ","),split = ",")
   results$location <- lapply(results$location, sort)
   results$location <- lapply(results$location, function(x) paste(x, collapse = ", "))
   results$location <- unlist(results$location)
@@ -1716,7 +1842,7 @@ GeoLiftPowerFinder <- function(data,
 
   # Add Percent of Y in test markets
   resultsM$ProportionTotal_Y <- 1
-  resultsM$Locs <- strsplit(str_replace_all(resultsM$location, ", ", ","),split = ",")
+  resultsM$Locs <- strsplit(stringr::str_replace_all(resultsM$location, ", ", ","),split = ",")
 
   for (row in 1:nrow(resultsM)) {
     resultsM$ProportionTotal_Y[row] <- as.numeric(AggYperLoc %>%
@@ -1756,7 +1882,7 @@ GeoLiftPowerFinder <- function(data,
       bestmodels <- list()
       for (i in 1:4){
 
-        locs_aux <- unlist(strsplit(str_replace_all(BestResults$location[i], ", ", ","),split = ","))
+        locs_aux <- unlist(strsplit(stringr::str_replace_all(BestResults$location[i], ", ", ","),split = ","))
 
         data_lifted <- data
 
@@ -1766,15 +1892,15 @@ GeoLiftPowerFinder <- function(data,
                           data_lifted$time >= max_time - tp + 1]*(1+BestResults$lift[i])
 
         bestmodels[[i]] <- GeoLift::GeoLift(Y_id = "Y",
-                                             time_id = "time",
-                                             location_id = "location",
-                                             data = data_lifted,
-                                             locations = locs_aux,
-                                             treatment_start_time = max_time - tp + 1,
-                                             treatment_end_time = max_time,
-                                             model = model,
-                                             fixed_effects = fixed_effects,
-                                             print = FALSE)
+                                            time_id = "time",
+                                            location_id = "location",
+                                            data = data_lifted,
+                                            locations = locs_aux,
+                                            treatment_start_time = max_time - tp + 1,
+                                            treatment_end_time = max_time,
+                                            model = model,
+                                            fixed_effects = fixed_effects,
+                                            print = FALSE)
 
       }
       gridExtra::grid.arrange(plot(bestmodels[[1]], notes = paste("locations:", BestResults$location[1],
