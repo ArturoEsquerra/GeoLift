@@ -23,7 +23,8 @@ GeoLiftPower(
   stat_func = NULL,
   ProgressBar = FALSE,
   parallel = TRUE,
-  parallel_setup = "sequential"
+  parallel_setup = "sequential",
+  import_augsynth_from = "library(augsynth)"
 )
 }
 \arguments{
@@ -99,6 +100,9 @@ speed up calculations. Set to TRUE by default.}
 
 \item{parallel_setup}{A string indicating parallel workers set-up.
 Set to "sequential" by default.}
+
+\item{import_augsynth_from}{Points to where the augsynth package
+should be imported from to send to the nodes.}
 }
 \value{
 GeoLiftPower object that contains:
