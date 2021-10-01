@@ -615,6 +615,10 @@ pvalueCalc <- function(data,
 #' @param stat_func Function to compute test statistic. NULL by default.
 #' @param ProgressBar A logic flag indicating whether to display a progress bar
 #' to track progress. Set to FALSE by default.
+#' @param parallel A logic flag indicating whether to use parallel computing to
+#' speed up calculations. Set to TRUE by default.
+#' @param parallel_setup A string indicating parallel workers set-up.
+#' Set to "sequential" by default.
 #'
 #' @return
 #' GeoLiftPower object that contains:
@@ -631,38 +635,49 @@ pvalueCalc <- function(data,
 #'
 #' @export
 GeoLiftPower <- function(data,
-                         locations,
-                         effect_size = seq(0,1,0.05),
-                         treatment_periods,
-                         horizon = -1,
-                         cpic = 0,
-                         X = c(),
-                         Y_id = "Y",
-                         location_id = "location",
-                         time_id = "time",
-                         alpha = 0.1,
-                         type = "pValue",
-                         normalize = FALSE,
-                         model = "none",
-                         fixed_effects = TRUE,
-                         stat_func = NULL,
-                         ProgressBar = FALSE){
+                             locations,
+                             effect_size = seq(0,1,0.05),
+                             treatment_periods,
+                             horizon = -1,
+                             cpic = 0,
+                             X = c(),
+                             Y_id = "Y",
+                             location_id = "location",
+                             time_id = "time",
+                             alpha = 0.1,
+                             type = "pValue",
+                             normalize = FALSE,
+                             model = "none",
+                             fixed_effects = TRUE,
+                             stat_func = NULL,
+                             ProgressBar = FALSE,
+                             parallel = TRUE,
+                             parallel_setup = "sequential"){
 
-  cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = "sequential") #NEWCHANGE: Return to parallel when bug is fixed
-  doParallel::registerDoParallel(cl)
+  if (parallel == TRUE){
+    if (parallel_setup == "sequential"){
+      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup)
+    } else if (parallel_setup == "parallel"){
+      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup, setup_timeout = 0.5)
+    } else {
+      stop('Please specify a valid set-up')
+    }
 
-  parallel::clusterCall(cl, function()
-    attachNamespace('augsynth'))
-  parallel::clusterCall(cl, function()
-    attachNamespace('dplyr'))
-  parallel::clusterCall(cl, function()
-    attachNamespace('tidyr'))
+    doParallel::registerDoParallel(cl)
 
-  parallel::clusterExport(
-    cl,
-    c('fn_treatment','pvalueCalc'),
-    envir=environment()
-  )
+    parallel::clusterCall(cl, function()
+      attachNamespace('augsynth'))
+    parallel::clusterCall(cl, function()
+      attachNamespace('dplyr'))
+    parallel::clusterCall(cl, function()
+      attachNamespace('tidyr'))
+
+    parallel::clusterExport(
+      cl,
+      c('fn_treatment','pvalueCalc', 'MarketSelection'),
+      envir=environment()
+    )
+  }
 
   # Part 1: Treatment and pre-treatment periods
   data <- data %>% dplyr::rename(Y = paste(Y_id), location = paste(location_id), time = paste(time_id))
@@ -705,43 +720,74 @@ GeoLiftPower <- function(data,
         pb$tick()
       }
 
-      a <- foreach(sim = 1:(t_n - horizon + 1), #NEWCHANGE: Horizon = earliest start time for simulations
-                   .combine=cbind,
-                   .errorhandling = 'remove') %dopar% {
-                     pvalueCalc(
-                       data = data,
-                       sim = sim,
-                       max_time = max_time,
-                       tp = tp,
-                       es = es,
-                       locations = locations,
-                       cpic = cpic,
-                       X = c(),
-                       type = type,
-                       normalize = normalize,
-                       fixed_effects = fixed_effects,
-                       model = model,
-                       stat_func = stat_func)
+      if (parallel == TRUE){
+        a <- foreach(sim = 1:(t_n - horizon + 1), #NEWCHANGE: Horizon = earliest start time for simulations
+                     .combine=cbind,
+                     .errorhandling = 'remove') %dopar% {
+                       pvalueCalc(
+                         data = data,
+                         sim = sim,
+                         max_time = max_time,
+                         tp = tp,
+                         es = es,
+                         locations = locations,
+                         cpic = cpic,
+                         X = c(),
+                         type = type,
+                         normalize = normalize,
+                         fixed_effects = fixed_effects,
+                         model = model,
+                         stat_func = stat_func)
 
-                   }
+                     }
 
-      #print(a)
+        #print(a)
 
-      for (i in 1:ncol(a)) {
-        results <- rbind(results, data.frame(location = a[[1,i]],
-                                             pvalue = as.numeric(a[[2,i]]),
-                                             duration = as.numeric(a[[3,i]]),
-                                             lift = as.numeric(a[[4,i]]),
-                                             treatment_start = as.numeric(a[[5,i]]),
-                                             investment = as.numeric(a[[6,i]]),
-                                             cpic = cpic,
-                                             ScaledL2Imbalance = as.numeric(a[[7,i]]) ) )
+        for (i in 1:ncol(a)) {
+          results <- rbind(results, data.frame(location = a[[1,i]],
+                                               pvalue = as.numeric(a[[2,i]]),
+                                               duration = as.numeric(a[[3,i]]),
+                                               lift = as.numeric(a[[4,i]]),
+                                               treatment_start = as.numeric(a[[5,i]]),
+                                               investment = as.numeric(a[[6,i]]),
+                                               cpic = cpic,
+                                               ScaledL2Imbalance = as.numeric(a[[7,i]]) ) )
+        }
+      } else{
+        for (sim in 1:(t_n - horizon + 1)) {
+          aux <- NULL
+          aux <- suppressMessages(pvalueCalc(
+            data = data,
+            sim = sim,
+            max_time = max_time,
+            tp = tp,
+            es = es,
+            locations = locations,
+            cpic = cpic,
+            X = c(),
+            type = type,
+            normalize = normalize,
+            fixed_effects = fixed_effects,
+            model = model,
+            stat_func = stat_func))
+
+          results <- rbind(results, data.frame(location=aux[1],
+                                               pvalue = as.numeric(aux[2]),
+                                               duration = as.numeric(aux[3]),
+                                               lift = as.numeric(aux[4]),
+                                               treatment_start = as.numeric(aux[5]),
+                                               investment = as.numeric(aux[6]),
+                                               cpic = cpic,
+                                               ScaledL2Imbalance = as.numeric(aux[7]) ) )
+        }
       }
-
     }
   }
 
-  parallel::stopCluster(cl)
+  if (parallel == TRUE){
+    parallel::stopCluster(cl)
+  }
+
   class(results) <- c("GeoLiftPower", class(results))
 
   results$pow <- 0
