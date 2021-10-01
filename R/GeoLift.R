@@ -558,6 +558,49 @@ pvalueCalc <- function(data,
   )
 }
 
+#' Build cluster to parallelize operations across nodes in machine.
+#'
+#' @description
+#' This function builds the cluster and imports the necessary packages
+#' to run Geolift: augsynth, dplyr and tidyr.
+#'
+#' @param parallel_setup A string indicating parallel workers set-up. 
+#' Can be "sequential" or "parallel".
+#' @param import_augsynth_from Points to where the augsynth package
+#' should be imported from to send to the nodes.
+#' @return
+#' Cluster object that will parallelize operations.
+#' @export
+build_cluster <- function(parallel_setup,
+                          import_augsynth_from){
+  message("Setting up cluster.")
+  if (parallel_setup == "sequential"){
+    cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup)
+  } else if (parallel_setup == "parallel"){
+    cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup, setup_timeout = 0.5)
+  } else {
+    stop('Please specify a valid set-up. Can be one of "sequential" or "parallel".')
+  }
+  
+  doParallel::registerDoParallel(cl)
+  
+  message("Importing functions into cluster.")
+  parallel::clusterCall(cl, function()
+    eval(parse(text=import_augsynth_from)))
+  
+  parallel::clusterCall(cl, function()
+    attachNamespace('dplyr'))
+  parallel::clusterCall(cl, function()
+    attachNamespace('tidyr'))
+  
+  parallel::clusterExport(
+    cl,
+    c('fn_treatment','pvalueCalc', 'MarketSelection'),
+    envir=environment()
+  )
+  return(cl)
+}
+
 
 #' Power Calculation for GeoLift for known test locations.
 #'
@@ -619,6 +662,8 @@ pvalueCalc <- function(data,
 #' speed up calculations. Set to TRUE by default.
 #' @param parallel_setup A string indicating parallel workers set-up.
 #' Set to "sequential" by default.
+#' @param import_augsynth_from Points to where the augsynth package
+#' should be imported from to send to the nodes.
 #'
 #' @return
 #' GeoLiftPower object that contains:
@@ -652,31 +697,12 @@ GeoLiftPower <- function(data,
                              stat_func = NULL,
                              ProgressBar = FALSE,
                              parallel = TRUE,
-                             parallel_setup = "sequential"){
+                             parallel_setup = "sequential",
+                             import_augsynth_from = "library(augsynth)"){
 
   if (parallel == TRUE){
-    if (parallel_setup == "sequential"){
-      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup)
-    } else if (parallel_setup == "parallel"){
-      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup, setup_timeout = 0.5)
-    } else {
-      stop('Please specify a valid set-up')
-    }
-
-    doParallel::registerDoParallel(cl)
-
-    parallel::clusterCall(cl, function()
-      attachNamespace('augsynth'))
-    parallel::clusterCall(cl, function()
-      attachNamespace('dplyr'))
-    parallel::clusterCall(cl, function()
-      attachNamespace('tidyr'))
-
-    parallel::clusterExport(
-      cl,
-      c('fn_treatment','pvalueCalc', 'MarketSelection'),
-      envir=environment()
-    )
+    cl <- build_cluster(
+      parallel_setup = parallel_setup, import_augsynth_from = import_augsynth_from)
   }
 
   # Part 1: Treatment and pre-treatment periods
@@ -993,6 +1019,8 @@ plot.GeoLiftPower <- function(x,
 #' speed up calculations. Set to TRUE by default.
 #' @param parallel_setup A string indicating parallel workers set-up.
 #' Set to "sequential" by default.
+#' @param import_augsynth_from Points to where the augsynth package
+#' should be imported from to send to the nodes.
 #'
 #' @return
 #' Table of average power by number of locations.
@@ -1016,32 +1044,13 @@ NumberLocations <- function(data,
                             stat_func = NULL,
                             ProgressBar = FALSE,
                             parallel = TRUE,
-                            parallel_setup = "sequential"){
-
-  if (parallel == TRUE){
-    if (parallel_setup == "sequential"){
-      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup)
-    } else if (parallel_setup == "parallel"){
-      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup, setup_timeout = 0.5)
-    } else {
-      stop('Please specify a valid set-up')
+                            parallel_setup = "sequential",
+                            import_augsynth_from = "library(augsynth)"){
+    
+    if (parallel == TRUE){
+      cl <- build_cluster(
+        parallel_setup = parallel_setup, import_augsynth_from = import_augsynth_from)
     }
-
-    doParallel::registerDoParallel(cl)
-
-    parallel::clusterCall(cl, function()
-      attachNamespace('augsynth'))
-    parallel::clusterCall(cl, function()
-      attachNamespace('dplyr'))
-    parallel::clusterCall(cl, function()
-      attachNamespace('tidyr'))
-
-    parallel::clusterExport(
-      cl,
-      c('fn_treatment','pvalueCalc'),
-      envir=environment()
-    )
-  }
 
   # Part 1: Treatment and pre-treatment periods
   data <- data %>% dplyr::rename(Y = paste(Y_id), location = paste(location_id), time = paste(time_id))
@@ -1381,6 +1390,8 @@ stochastic_market_selector <- function(
 #' speed up calculations. Set to TRUE by default.
 #' @param parallel_setup A string indicating parallel workers set-up.
 #' Set to "sequential" by default.
+#' @param import_augsynth_from Points to where the augsynth package
+#' should be imported from to send to the nodes.
 #'
 #' @return
 #' Data frame with the ordered list of best locations and their
@@ -1406,31 +1417,12 @@ GeoLiftPower.search <- function(data,
                                 ProgressBar = FALSE,
                                 run_stochastic_process = FALSE,
                                 parallel = TRUE,
-                                parallel_setup = "sequential"){
-
+                                parallel_setup = "sequential",
+                                import_augsynth_from = "library(augsynth)"){
+  
   if (parallel == TRUE){
-    if (parallel_setup == "sequential"){
-      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup)
-    } else if (parallel_setup == "parallel"){
-      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup, setup_timeout = 0.5)
-    } else {
-      stop('Please specify a valid set-up')
-    }
-
-    doParallel::registerDoParallel(cl)
-
-    parallel::clusterCall(cl, function()
-      attachNamespace('augsynth'))
-    parallel::clusterCall(cl, function()
-      attachNamespace('dplyr'))
-    parallel::clusterCall(cl, function()
-      attachNamespace('tidyr'))
-
-    parallel::clusterExport(
-      cl,
-      c('fn_treatment','pvalueCalc', 'MarketSelection'),
-      envir=environment()
-    )
+    cl <- build_cluster(
+      parallel_setup = parallel_setup, import_augsynth_from = import_augsynth_from)
   }
 
   # Part 1: Treatment and pre-treatment periods
@@ -1682,6 +1674,8 @@ GeoLiftPower.search <- function(data,
 #' speed up calculations. Set to TRUE by default.
 #' @param parallel_setup A string indicating parallel workers set-up.
 #' Set to "sequential" by default.
+#' @param import_augsynth_from Points to where the augsynth package
+#' should be imported from to send to the nodes.
 #'
 #' @return
 #' Data frame with the ordered list of best locations and their
@@ -1707,31 +1701,12 @@ GeoLiftPowerFinder <- function(data,
                                plot_best = FALSE,
                                run_stochastic_process = FALSE,
                                parallel = TRUE,
-                               parallel_setup = "sequential"){
-
+                               parallel_setup = "sequential",
+                               import_augsynth_from = "library(augsynth)"){
+  
   if (parallel == TRUE){
-    if (parallel_setup == "sequential"){
-      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup)
-    } else if (parallel_setup == "parallel"){
-      cl <- parallel::makeCluster(parallel::detectCores() - 1, setup_strategy = parallel_setup, setup_timeout = 0.5)
-    } else {
-      stop('Please specify a valid set-up')
-    }
-
-    doParallel::registerDoParallel(cl)
-
-    parallel::clusterCall(cl, function()
-      attachNamespace('augsynth'))
-    parallel::clusterCall(cl, function()
-      attachNamespace('dplyr'))
-    parallel::clusterCall(cl, function()
-      attachNamespace('tidyr'))
-
-    parallel::clusterExport(
-      cl,
-      c('fn_treatment','pvalueCalc', 'MarketSelection'),
-      envir=environment()
-    )
+    cl <- build_cluster(
+      parallel_setup = parallel_setup, import_augsynth_from = import_augsynth_from)
   }
 
   # Part 1: Treatment and pre-treatment periods
