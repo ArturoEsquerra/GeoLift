@@ -749,7 +749,7 @@ GeoLiftPower <- function(data,
       if (parallel == TRUE){
         a <- foreach(sim = 1:(t_n - horizon + 1), #NEWCHANGE: Horizon = earliest start time for simulations
                      .combine=cbind,
-                     .errorhandling = 'remove') %dopar% {
+                     .errorhandling = 'stop') %dopar% {
                        pvalueCalc(
                          data = data,
                          sim = sim,
@@ -1094,7 +1094,7 @@ NumberLocations <- function(data,
     if (parallel == TRUE){
       a <- foreach(sim = 1:n_sim,
                    .combine=cbind,
-                   .errorhandling = 'remove') %dopar% {
+                   .errorhandling = 'stop') %dopar% {
                      pvalueCalc(
                        data = data,
                        sim = 1,
@@ -1483,7 +1483,7 @@ GeoLiftPower.search <- function(data,
         if (parallel == TRUE){
           a <- foreach(sim = 1:(t_n - horizon + 1), #NEWCHANGE: Horizon = earliest start time for simulations
                        .combine=cbind,
-                       .errorhandling = 'remove') %dopar% {
+                       .errorhandling = 'stop') %dopar% {
                          pvalueCalc(
                            data = data,
                            sim = sim,
@@ -1765,7 +1765,7 @@ GeoLiftPowerFinder <- function(data,
         if (parallel == TRUE){
           a <- foreach(test = 1:nrow(as.matrix(BestMarkets_aux)), #NEWCHANGE: Horizon = earliest start time for simulations
                        .combine=cbind,
-                       .errorhandling = 'remove') %dopar% {
+                       .errorhandling = 'stop') %dopar% {
                          pvalueCalc(
                            data = data,
                            sim = 1,
