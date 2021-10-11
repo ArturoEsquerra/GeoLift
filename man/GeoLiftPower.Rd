@@ -20,7 +20,6 @@ GeoLiftPower(
   normalize = FALSE,
   model = "none",
   fixed_effects = TRUE,
-  stat_func = NULL,
   ProgressBar = FALSE,
   parallel = TRUE,
   parallel_setup = "sequential",
@@ -89,8 +88,6 @@ fit and reduce L2 imbalance metrics.
 
 \item{fixed_effects}{A logic flag indicating whether to include unit fixed
 effects in the model. Set to TRUE by default.}
-
-\item{stat_func}{Function to compute test statistic. NULL by default.}
 
 \item{ProgressBar}{A logic flag indicating whether to display a progress bar
 to track progress. Set to FALSE by default.}

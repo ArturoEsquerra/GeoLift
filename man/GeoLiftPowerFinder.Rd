@@ -19,7 +19,6 @@ GeoLiftPowerFinder(
   normalize = FALSE,
   model = "none",
   fixed_effects = TRUE,
-  stat_func = NULL,
   dtw = 0,
   ProgressBar = FALSE,
   plot_best = FALSE,
@@ -73,8 +72,6 @@ fit and reduce L2 imbalance metrics.
 
 \item{fixed_effects}{A logic flag indicating whether to include unit fixed
 effects in the model. Set to TRUE by default.}
-
-\item{stat_func}{Function to compute test statistic. NULL by default.}
 
 \item{dtw}{Emphasis on Dynamic Time Warping (DTW), dtw = 1 focuses exclusively
 on this metric while dtw = 0 (default) relies on correlations only.}

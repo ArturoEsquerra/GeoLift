@@ -655,7 +655,6 @@ build_cluster <- function(parallel_setup,
 #'          }
 #' @param fixed_effects A logic flag indicating whether to include unit fixed
 #' effects in the model. Set to TRUE by default.
-#' @param stat_func Function to compute test statistic. NULL by default.
 #' @param ProgressBar A logic flag indicating whether to display a progress bar
 #' to track progress. Set to FALSE by default.
 #' @param parallel A logic flag indicating whether to use parallel computing to
@@ -694,7 +693,6 @@ GeoLiftPower <- function(data,
                          normalize = FALSE,
                          model = "none",
                          fixed_effects = TRUE,
-                         stat_func = NULL,
                          ProgressBar = FALSE,
                          parallel = TRUE,
                          parallel_setup = "sequential",
@@ -739,6 +737,11 @@ GeoLiftPower <- function(data,
   }
   
   for (es in effect_size){ #iterate through lift %
+    if (es < 0){
+      stat_func <- function(x) -sum(x) # HA: ES<0
+    } else {
+      stat_func <- function(x) sum(x) # HA: ES>0
+    }
     for (tp in treatment_periods){ #lifts
       t_n <- max(data$time) - tp + 1 #Number of simulations without extrapolation
       
@@ -1656,7 +1659,6 @@ GeoLiftPower.search <- function(data,
 #'          }
 #' @param fixed_effects A logic flag indicating whether to include unit fixed
 #' effects in the model. Set to TRUE by default.
-#' @param stat_func Function to compute test statistic. NULL by default.
 #' @param dtw Emphasis on Dynamic Time Warping (DTW), dtw = 1 focuses exclusively
 #' on this metric while dtw = 0 (default) relies on correlations only.
 #' @param ProgressBar A logic flag indicating whether to display a progress bar
@@ -1695,7 +1697,6 @@ GeoLiftPowerFinder <- function(data,
                                normalize = FALSE,
                                model = "none",
                                fixed_effects = TRUE,
-                               stat_func = NULL,
                                dtw = 0,
                                ProgressBar = FALSE,
                                plot_best = FALSE,
@@ -1756,8 +1757,13 @@ GeoLiftPowerFinder <- function(data,
       BestMarkets,
       run_stochastic_process = run_stochastic_process)
     for (es in effect_size){ #iterate through lift %
+      if (es < 0){
+        stat_func <- function(x) -sum(x) # HA: ES<0
+      } else {
+        stat_func <- function(x) sum(x) # HA: ES>0
+      }
       for (tp in treatment_periods){ #lifts
-        
+
         if(ProgressBar == TRUE){
           pb$tick()
         }
