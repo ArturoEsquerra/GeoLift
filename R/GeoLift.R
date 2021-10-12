@@ -739,7 +739,6 @@ GeoLiftPower <- function(data,
   for (es in effect_size){ #iterate through lift %
     if (es < 0){
       stat_func <- function(x) -sum(x) # HA: ES<0
-      # He didnt like this.
     } else {
       stat_func <- function(x) sum(x) # HA: ES>0
     }
