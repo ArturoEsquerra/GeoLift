@@ -2601,6 +2601,8 @@ print.summary.GeoLift <- function(x, ...){
 }
 
 
+
+
 #' GeoLift
 #'
 #' @description A package implementing the Augmented Synthetic Controls Method
