@@ -1999,7 +1999,6 @@ GeoLiftPowerFinder <- function(data,
 #'          Recommended for Negative Lift tests.}
 #'          \item{"Positive":}{ One-way test against negative effects i.e. sum(x).
 #'          Recommended for Positive Lift tests.}
-#'          \item{"Average":}{ Test against the average post-treatment effect i.e. abs(sum(x)).}
 #' }
 #' @param print A logic flag indicating whether to print the results or not.
 #' Set to TRUE by default.
