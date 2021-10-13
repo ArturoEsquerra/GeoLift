@@ -1352,7 +1352,7 @@ stochastic_market_selector <- function(
 #'          If the effect being applied is negative, then defaults to -sum(x). H0: ES >= 0; HA: ES < 0.
 #'          If the effect being applied is positive, then defaults to sum(x). H0: ES <= 0; HA: ES > 0.}
 #'          }
-#' @param effect_sign A string indicating what is the alternative hypothesis being tested. Defaults to NULL. 
+#' @param alternative_hypothesis A string indicating what is the alternative hypothesis being tested. Defaults to NULL. 
 #' \itemize{
 #'          \item{"negative":}{ H0: ES >= 0; HA: ES < 0.}
 #'          \item{"positive":}{ H0: ES <= 0; HA: ES > 0.}
