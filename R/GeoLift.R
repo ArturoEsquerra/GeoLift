@@ -704,7 +704,7 @@ GeoLiftPower <- function(data,
                          ProgressBar = FALSE,
                          parallel = TRUE,
                          parallel_setup = "sequential",
-                         side_of_test = "two_tailed",
+                         side_of_test = "two_sided",
                          import_augsynth_from = "library(augsynth)"){
   
   if (parallel == TRUE){
@@ -1373,7 +1373,11 @@ type_of_test <- function(side_of_test="two_sided", alternative_hypothesis=NULL){
       stat_func <- function(x) -sum(x)
     } else if (tolower(alternative_hypothesis) == "positive"){
       stat_func <- function(x) sum(x)
+    } else {
+      stop("Please define a valid alternative_hypothesis. Can be either {'Negative', 'Positive'}.")
     }
+  } else {
+    stop("Please define a valid side_of_test. Can be either {'one_sided', 'two_sided'}.")
   }
   return(stat_func)
 }
