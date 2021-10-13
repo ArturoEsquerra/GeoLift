@@ -661,6 +661,14 @@ build_cluster <- function(parallel_setup,
 #' speed up calculations. Set to TRUE by default.
 #' @param parallel_setup A string indicating parallel workers set-up.
 #' Set to "sequential" by default.
+#' @param side_of_test A string indicating whether confidence will be determined
+#' using a one sided or a two sided test.
+#' \itemize{
+#'          \item{"two_sided":}{ The test statistic is the sum of all treatment effects, i.e. sum(abs(x)). Defualt.}
+#'          \item{"one_sided":}{ One-sided test against positive or negaative effects i.e. 
+#'          If the effect being applied is negative, then defaults to -sum(x). H0: ES >= 0; HA: ES < 0.
+#'          If the effect being applied is positive, then defaults to sum(x). H0: ES <= 0; HA: ES > 0.}
+#'          }
 #' @param import_augsynth_from Points to where the augsynth package
 #' should be imported from to send to the nodes.
 #'
@@ -696,6 +704,7 @@ GeoLiftPower <- function(data,
                          ProgressBar = FALSE,
                          parallel = TRUE,
                          parallel_setup = "sequential",
+                         side_of_test = "two_tailed",
                          import_augsynth_from = "library(augsynth)"){
   
   if (parallel == TRUE){
@@ -737,11 +746,10 @@ GeoLiftPower <- function(data,
   }
   
   for (es in effect_size){ #iterate through lift %
-    if (es < 0){
-      stat_func <- function(x) -sum(x) # HA: ES<0
-    } else {
-      stat_func <- function(x) sum(x) # HA: ES>0
-    }
+    
+    stat_func <- type_of_test(side_of_test = side_of_test,
+                              alternative_hypothesis = ifelse(es > 0, "Positive", "Negative"))
+    
     for (tp in treatment_periods){ #lifts
       t_n <- max(data$time) - tp + 1 #Number of simulations without extrapolation
       
@@ -1328,6 +1336,49 @@ stochastic_market_selector <- function(
 }
 
 
+#' Decides type of statistical function being applied for Conformal
+#' Inference.
+#'
+#' @description
+#'
+#' \code{type_of_test} returns stat_func being used for GeoLiftPower;
+#' GeoLiftPowerFinder & GeoLift.
+#'
+#' @param side_of_test A string indicating whether confidence will be determined
+#' using a one sided or a two sided test.
+#' \itemize{
+#'          \item{"two_sided":}{ The test statistic is the sum of all treatment effects, i.e. sum(abs(x)). Defualt.}
+#'          \item{"one_sided":}{ One-sided test against positive or negaative effects i.e. 
+#'          If the effect being applied is negative, then defaults to -sum(x). H0: ES >= 0; HA: ES < 0.
+#'          If the effect being applied is positive, then defaults to sum(x). H0: ES <= 0; HA: ES > 0.}
+#'          }
+#' @param effect_sign A string indicating what is the alternative hypothesis being tested. Defaults to NULL. 
+#' \itemize{
+#'          \item{"negative":}{ H0: ES >= 0; HA: ES < 0.}
+#'          \item{"positive":}{ H0: ES <= 0; HA: ES > 0.}
+#' }
+#' @return
+#' Statistical function being used to sum ATT effects over all treatment periods.
+#'
+#' @export
+type_of_test <- function(side_of_test="two_sided", alternative_hypothesis=NULL){
+  if (side_of_test == "two_sided"){
+    stat_func <- function(x) sum(abs(x))
+  } else if (side_of_test == "one_sided"){
+    if (is.null(alternative_hypothesis)){
+      stop("If running a one sided test, please define alternative_hypotehsis parameter. 
+  Either 'positive' or 'negative'")
+    }
+    if (tolower(alternative_hypothesis) == "negative"){
+      stat_func <- function(x) -sum(x)
+    } else if (tolower(alternative_hypothesis) == "positive"){
+      stat_func <- function(x) sum(x)
+    }
+  }
+  return(stat_func)
+}
+
+
 #' Power calculations for unknown test market locations, number of
 #' test markets, and test duration.
 #'
@@ -1676,6 +1727,14 @@ GeoLiftPower.search <- function(data,
 #' speed up calculations. Set to TRUE by default.
 #' @param parallel_setup A string indicating parallel workers set-up.
 #' Set to "sequential" by default.
+#' @param side_of_test A string indicating whether confidence will be determined
+#' using a one sided or a two sided test.
+#' \itemize{
+#'          \item{"two_sided":}{ The test statistic is the sum of all treatment effects, i.e. sum(abs(x)). Defualt.}
+#'          \item{"one_sided":}{ One-sided test against positive or negaative effects i.e. 
+#'          If the effect being applied is negative, then defaults to -sum(x). H0: ES >= 0; HA: ES < 0.
+#'          If the effect being applied is positive, then defaults to sum(x). H0: ES <= 0; HA: ES > 0.}
+#'          }
 #' @param import_augsynth_from Points to where the augsynth package
 #' should be imported from to send to the nodes.
 #'
@@ -1703,6 +1762,7 @@ GeoLiftPowerFinder <- function(data,
                                run_stochastic_process = FALSE,
                                parallel = TRUE,
                                parallel_setup = "sequential",
+                               side_of_test = "two_sided",
                                import_augsynth_from = "library(augsynth)"){
   
   if (parallel == TRUE){
@@ -1757,11 +1817,10 @@ GeoLiftPowerFinder <- function(data,
       BestMarkets,
       run_stochastic_process = run_stochastic_process)
     for (es in effect_size){ #iterate through lift %
-      if (es < 0){
-        stat_func <- function(x) -sum(x) # HA: ES<0
-      } else {
-        stat_func <- function(x) sum(x) # HA: ES>0
-      }
+      
+      stat_func <- type_of_test(side_of_test = side_of_test, 
+                                alternative_hypothesis = ifelse(es > 0, "positive", "negative"))
+      
       for (tp in treatment_periods){ #lifts
 
         if(ProgressBar == TRUE){
@@ -2137,15 +2196,19 @@ GeoLift <- function(Y_id = "Y",
                               "Upper.Conf.Int")
   
   #NEWCHANGE: To avoid running the time-consuming summary process, create and store the object for re-use
-  if(tolower(stat_test) == "negative"){
-    sum_augsyn <- summary(augsyn, alpha = alpha, stat_func = function(x) -sum(x))
-  } else if(tolower(stat_test) == "positive"){
-    sum_augsyn <- summary(augsyn, alpha = alpha, stat_func = function(x) sum(x))
-  } else if(tolower(stat_test) == "average"){
-    sum_augsyn <- summary(augsyn, alpha = alpha, stat_func = function(x) abs(sum(x)))
+  if (tolower(stat_test) == "total"){
+    side_of_test <- "two_sided"
+    alternative_hypothesis <- NULL
+  } else if (tolower(stat_test) == "negative" | tolower(stat_test) == "positive"){
+    side_of_test <- "one_sided"
+    alternative_hypothesis <- stat_test
   } else {
-    sum_augsyn <- summary(augsyn, alpha = alpha)
+    stop("stat_test must be one of {'total', 'negative', 'positive'}.")
   }
+  stat_func <- type_of_test(side_of_test = side_of_test, 
+                            alternative_hypothesis = alternative_hypothesis)
+  
+  sum_augsyn <- summary(augsyn, alpha = alpha, stat_func = stat_func)
   
   if(paste(augsyn$call)[1] == "single_augsynth"){
     mean <- sum_augsyn[['average_att']][['Estimate']] #Use summary object
