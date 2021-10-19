@@ -2672,6 +2672,396 @@ print.summary.GeoLift <- function(x, ...){
   
 }
 
+GeoMarketsUI <- function(df_markets,
+                         data_upload_file){
+  
+  #The goal of this function is to treat the included and excluded markets entered by the use as paratameter. These inputs are considered as dataframe.
+  #The steps of the this function are:
+  #a. separate locations by comma to associate to a vector (take a look at stringr::str_split(excluded_locations, ", ")[[1]]); 
+  #b. convert to lower case so they match the output of all locations in the dataset; 
+  #c. confirm that those locations are actually in the dataset, if they are output OK if not output message of the locations that were not found, but continue
+  
+  #Convert dataframe containing markets into charcater to the str_split can be applied. 
+  markets_inp <- as.character(df_markets[1, ])
+  
+  #create substrings (separate each market) considering the use will add comma between markets
+  markets_inp <- stringr::str_split(markets_inp, ", ")[[1]]
+  
+  #lowercase strings to match with the locations in the dataset uploaded
+  markets_inp <- tolower(markets_inp)
+  
+  #grab unique locations from the dataset uploaded
+  markets_datafile <- unique(data_upload_file['location'])
+  
+  #create the vector for the markets that will be ouput from this function
+  markets_out <- c()
+  
+  #loop to check if all markets entered by user match with markets in the dataset uploaded
+  for(market in 1:length(markets_inp)) {
+    #Save a market in the position of the loop in a aux variable
+    markets_inp_aux <- markets_inp[[market]]
+    
+    #Check if is TRUE or FALSE that the market entered is in dataset uploaded
+    check_bool <- any(markets_datafile == markets_inp_aux)
+    
+    #If chech is TRUE then append this market in the output vector
+    if(check_bool == TRUE){
+      markets_out <- append(markets_out, markets_inp_aux)
+    }
+  }
+  
+  #Check if length of the markets inputed by user is equal the lengh of markets passed in the match check test
+  #if yes return the markets as a vector
+  #if not print the error message
+  if(length(markets_inp) == length(markets_out)){
+    return(markets_out)
+  } else {
+    print('Error: Not all markets you input was found in the dataset you provided. Please check it')
+    return(NULL)
+  }
+  
+}
+
+
+GeoLiftPowerUI <- function(data_upload_file,
+                           test_duration,
+                           pre_test_duration = 0,
+                           cpic,
+                           investment_input = 0,
+                           size_min_pct = 0.0,
+                           size_max_pct = 1,
+                           include_markets = c(),
+                           exclude_markets = c(),
+                           geolift_standard = 1
+) {
+  
+  #GeoLiftPowerUI_v2 function
+  #Function to automate the choice of the best options of test markets combination containing the main steps:
+  #1 - Checks: Total_duration, pre_test_duration, exclude_markets
+  #2 - If user includes test markets
+  #2.1 - Compute GeoLiftPower and GeoLift for the test markets included.
+  #3 If test markets are not included
+  #3.1 - Run snippet code by grabing up to 50% of total markets provided
+  #3.2 - Compute Finder function.
+  #3.3 - First rows of Finder rank are considered as the best options of test markets combination.
+  #3.4 - Compute GeoLiftPower and GeoLift of these different combinations.
+  #4 Save results in a list
+  
+  #Compute total date points input by user
+  total_duration <- pre_test_duration + test_duration
+  
+  #Check if total duration is larger than the total time lenght of the file uploaded 
+  if(total_duration > length(unique(data_upload_file$time))){
+    print("Error: The sum of Pre Test duration and Test duration cannot overpass the total time length of your file.")
+    return(NULL)
+  }
+  
+  #Check if Test duration is zero or negative
+  if(test_duration <= 0){     
+    print("Error: Test duration cannot be zero or negative. Please review it")
+    return(NULL)
+  }
+  
+  #Compute start, end test date and horizon based on start_test_date
+  start_test_date <- length(unique(data_upload_file$time))-test_duration+1
+  end_test_date <- length(unique(data_upload_file$time))
+  
+  #Compute horizon based on the total periods of data input
+  total_periods <- max(data_upload_file$time) - min(data_upload_file$time)
+  horizon_input <- round(min(c(20, total_periods/10)))
+  
+  #In the case user enter pre_test_duration as input
+  #Ifpre_test_duration is equal or higher 4x test_duration it filters the time periods of the uploaded file 
+  #if not, compute pre_start_test_date, filter input dataframe and recover time points to start from 1 
+  if(pre_test_duration >= 4*test_duration){ 
+    pre_start_test_date <- start_test_date - pre_test_duration
+    data_upload_file <- filter(data_upload_file, time >= pre_start_test_date)
+    data_upload_file$time <- data_upload_file$time - pre_start_test_date + 1
+    
+    start_test_date <- length(unique(data_upload_file$time))-test_duration+1
+    end_test_date <- length(unique(data_upload_file$time))
+    pre_start_test_date <- start_test_date - pre_test_duration 
+  } else {
+    pre_test_duration <- start_test_date - 1
+    
+  }
+  
+  #Exclude markets input by user by filter them out from the uploaded file data
+  if(length(exclude_markets) > 0){
+    data_upload_file <- data_upload_file[!data_upload_file$location %in% exclude_markets,]
+  }
+  
+  
+  ################## If user include test markets, these markets are used as input to GeoLiftPower and GeoLift.################## 
+  ################## If there is no incude test markets input by user we compute an algorithm to compute best 5 options using NumberLocations, GeoLiftPower.Search, GeoLiftFinder, GeoLiftPower and GeoLift functions.################## 
+  if (length(include_markets) > 0){
+    
+    #Number of options to be displayed in the Power analysis
+    options = 1
+    locs <- include_markets
+    
+    #Lists to save results of GeoLiftPower and GeoLift function respectevely. Length of these lists is based on the number of options
+    list_resultsPow_option <- vector("list", options)
+    list_resultsPow_option_avg <- vector("list", options)
+    list_GeoTest_option <- vector("list", options)
+    
+    #Compute the total conversion for each market.
+    #This dataframe will be used to calculate the conversion proportion of the combinations from Power results.
+    AggYperLoc <- GeoTestData_PreTest %>%
+      dplyr::group_by(location) %>%
+      dplyr::summarize(Total_Y = sum(Y))
+    
+    #Computer power for the option: Test markets included by user
+    resultsPow_option <- GeoLiftPower(data = data_upload_file,
+                                      locations = locs,
+                                      effect_size = seq(-0.25,0.25,0.01),
+                                      treatment_periods = test_duration,
+                                      horizon = horizon_input,
+                                      Y_id = "Y",
+                                      location_id = "location",
+                                      time_id = "time",
+                                      cpic = cpic)
+    
+    #Save results in a list
+    list_resultsPow_option[[options]] <- resultsPow_option
+    
+    #This piece of code is used to grab the investment at a power >= 0.8. This piece of code is needed to provide investment level and filter results based on the GeoLift use case provided by user.
+    resultsPow_option_avg <- resultsPow_option %>% dplyr::group_by(location, lift, duration, cpic) %>% dplyr::summarize(mean_investment = mean(investment), mean_ScaledL2Imbalance = mean(ScaledL2Imbalance), power = mean(1-pvalue))
+    if(geolift_standard == 1){
+      resultsPow_option_avg <- filter(resultsPow_option_avg, lift >= 0)
+    } else {
+      resultsPow_option_avg <- filter(resultsPow_option_avg, lift <= 0)
+    }
+    
+    if(investment_input > 0){
+      if(geolift_standard == 1){
+        
+        #Check if investment_input is higher than the maximum mean_investment from GeoLift power results 
+        #If is true, then investment_input receives the maximum mean_investment
+        #This step is needed otherwise dataframe will be empty
+        if(investment_input >= max(resultsPow_option_avg[["mean_investment"]])){
+          investment_input <- max(resultsPow_option_avg[["mean_investment"]])
+        }
+        #Filter results with mean_investment >= investment_input and order it 
+        resultsPow_option_avg <- filter(resultsPow_option_avg, mean_investment >= investment_input)
+        resultsPow_option_avg <- resultsPow_option_avg[order(resultsPow_option_avg$mean_investment),]
+        
+      } else {
+        investment_input <- -1*investment_input
+        
+        #Check if investment_input is lower than the minimum negative mean_investment from GeoLift power results (max negative value)
+        #If is true, then investment_input receives the minimum negative mean_investment
+        #This step is needed otherwise dataframe will be empty
+        if(investment_input <= min(resultsPow_option_avg[["mean_investment"]])){
+          investment_input <- min(resultsPow_option_avg[["mean_investment"]])
+        }
+        
+        #Filter results with mean_investment <= investment_input and order it 
+        resultsPow_option_avg <- filter(resultsPow_option_avg, mean_investment <= investment_input)
+        resultsPow_option_avg <- resultsPow_option_avg[order(-resultsPow_option_avg$mean_investment),]
+      }
+      
+    } else {
+      
+      #Filter results with power >= 0.8 and order it 
+      resultsPow_option_avg <- filter(resultsPow_option_avg, power >= 0.8)
+      resultsPow_option_avg <- resultsPow_option_avg[order(resultsPow_option_avg$power),]
+    }
+    
+    
+    #This piece of code is needed to compute the conversion proportion of the combinations from Power results
+    resultsPow_option_avg$ProportionTotal_Y <- 1
+    
+    resultsPow_option_avg$Locs <- strsplit(stringr::str_replace_all(resultsPow_option_avg$location, ", ", ","),split = ",")
+    
+    for (row in 1:nrow(resultsPow_option_avg)) {
+      
+      resultsPow_option_avg$ProportionTotal_Y[row] <- as.numeric(AggYperLoc %>%
+                                                                   dplyr::filter (location %in% resultsPow_option_avg$Locs[[row]]) %>%
+                                                                   dplyr::summarize(total = sum(Total_Y))) / sum(AggYperLoc$Total_Y)
+    }
+    
+    #Save results in a list
+    list_resultsPow_option_avg[[options]] <- resultsPow_option_avg
+    
+    #Compute GeoLift for the different options
+    GeoTest <- GeoLift(Y_id = "Y",
+                       data = data_upload_file,
+                       locations = locs,
+                       treatment_start_time = start_test_date,
+                       treatment_end_time = end_test_date
+    )
+    
+    #Save results in a list
+    list_GeoTest_option[[options]] <- GeoTest
+    
+  } else {
+    
+    #Number of options to be displayed in the Power analysis
+    options = 5
+    
+    #Lists to save results of GeoLiftPower and GeoLift function respectevely. Length of these lists is based on the number of options
+    list_resultsPow_option <- vector("list", options)
+    list_resultsPow_option_avg <- vector("list", options)
+    list_GeoTest_option <- vector("list", options)
+    
+    #Compute the number of locations to input in GeoLiftFinder function
+    number_locations <- unique(round(quantile(c(1:length(unique(GeoTestData_PreTest$location))),
+                                              probs = seq(0,0.5,0.05),
+                                              type = 1,
+                                              names = FALSE)))
+    
+    #Perform the GeoLiftPowerFinder function for the sequence of number of markets captured above.
+    resultsFind <- GeoLiftPowerFinder(data = data_upload_file,
+                                      treatment_periods = test_duration,
+                                      N = number_locations,
+                                      Y_id = "Y",
+                                      location_id = "location",
+                                      time_id = "time",
+                                      effect_size = seq(0, 0.5, 0.05),
+                                      top_results = 5,
+                                      alpha = 0.1,
+                                      fixed_effects = TRUE,
+                                      ProgressBar = TRUE,
+                                      plot_best = FALSE,
+                                      run_stochastic_process = FALSE)
+    
+    #Check which case of GeoLift user choose. If it's positive, we limit the conv_share of 1-treatement.
+    #If it's negative we limit the conv_share of treatment.
+    resultsFind$ProportionTotal_Y_1 <- 1 - resultsFind$ProportionTotal_Y
+    
+    if (geolift_standard == 1){
+      resultsFind_filter <- filter(resultsFind, ProportionTotal_Y_1 > size_min_pct & ProportionTotal_Y_1 < size_max_pct)
+    } else {
+      resultsFind_filter <- filter(resultsFind, ProportionTotal_Y > size_min_pct & ProportionTotal_Y < size_max_pct)
+    }
+    
+    #Order rank column
+    resultsFind_filter <- resultsFind_filter[order(resultsFind_filter$rank),]
+    
+    #Select the first 5 rows in terms of average rank. This will be the best 5 options displayed in the power analysis.
+    resultsFind_filter_options <- resultsFind_filter[1:options,]
+    
+    #Loop to tranform each row containing a combination of markets in columns cotaining each one a single market in the combination within the same row using separate function.
+    #This step is needed to create a vector with markets' combination to input in GeoLiftPower and GeoLift functions  
+    max_n_rows <- length(number_locations)
+    c <- character()
+    max_n_markets = as.numeric(number_locations[max_n_rows])
+    for(i in 1:max_n_markets) {
+      c <- append(c, i)
+    }
+    resultsFind_filter_options_sep <- separate(resultsFind_filter_options, location, c, sep = ", ")
+    
+    ############################# GEOLIFTPOWER AND GEOLIFT LOOP FOR DIFFERENT OPTIONS ##############################
+    
+    #Loop to run through the different options 
+    for(opt in 1:options) {
+      
+      #Loop to create a vector of test markets combination. A vector is needed to be input in GeoLiftPower and GeoLift functions. 
+      locs <- character()
+      
+      for(i in 1:max_n_markets) {
+        locs <- append(locs, resultsFind_filter_options_sep[[i]][[opt]])
+      }
+      
+      #As there can be different number of test markets combination, this command remove potential N/As from the vector.
+      locs <- na.omit(locs) 
+      
+      #Compute GeoLiftPower for the different options
+      resultsPow_option <- GeoLiftPower(data = data_upload_file,
+                                        locations = locs,
+                                        effect_size = seq(-0.25,0.25,0.01),
+                                        treatment_periods = test_duration,
+                                        horizon = horizon_input,
+                                        Y_id = "Y",
+                                        location_id = "location",
+                                        time_id = "time",
+                                        cpic = cpic)
+      
+      #Save results in a list
+      list_resultsPow_option[[opt]] <- resultsPow_option
+      
+      #This piece of code is used to grab the investment at a power >= 0.8. This piece of code is needed to provide investment level and filter results based on the GeoLift use case provided by user.
+      resultsPow_option_avg <- resultsPow_option %>% dplyr::group_by(location, lift, duration, cpic) %>% dplyr::summarize(mean_investment = mean(investment), mean_ScaledL2Imbalance = mean(ScaledL2Imbalance), power = mean(1-pvalue))
+      if(geolift_standard == 1){
+        resultsPow_option_avg <- filter(resultsPow_option_avg, lift >= 0)
+      } else {
+        resultsPow_option_avg <- filter(resultsPow_option_avg, lift <= 0)
+      }
+      
+      if(investment_input > 0){
+        if(geolift_standard == 1){
+          
+          #Check if investment_input is higher than the maximum mean_investment from GeoLift power results 
+          #If is true, then investment_input receives the maximum mean_investment
+          #This step is needed otherwise dataframe will be empty
+          if(investment_input >= max(resultsPow_option_avg[["mean_investment"]])){
+            investment_input <- max(resultsPow_option_avg[["mean_investment"]])
+          }
+          #Filter results with mean_investment >= investment_input and order it 
+          resultsPow_option_avg <- filter(resultsPow_option_avg, mean_investment >= investment_input)
+          resultsPow_option_avg <- resultsPow_option_avg[order(resultsPow_option_avg$mean_investment),]
+          
+        } else {
+          investment_input <- -1*investment_input
+          
+          #Check if investment_input is lower than the minimum negative mean_investment from GeoLift power results (max negative value)
+          #If is true, then investment_input receives the minimum negative mean_investment
+          #This step is needed otherwise dataframe will be empty
+          if(investment_input <= min(resultsPow_option_avg[["mean_investment"]])){
+            investment_input <- min(resultsPow_option_avg[["mean_investment"]])
+          }
+          
+          #Filter results with mean_investment <= investment_input and order it 
+          resultsPow_option_avg <- filter(resultsPow_option_avg, mean_investment <= investment_input)
+          resultsPow_option_avg <- resultsPow_option_avg[order(-resultsPow_option_avg$mean_investment),]
+        }
+        
+      } else {
+        
+        #Filter results with power >= 0.8 and order it 
+        resultsPow_option_avg <- filter(resultsPow_option_avg, power >= 0.8)
+        resultsPow_option_avg <- resultsPow_option_avg[order(resultsPow_option_avg$power),]
+      }
+      
+      
+      resultsFind_filter_options_aux <- resultsFind_filter_options[,c("location", "ProportionTotal_Y")]
+      resultsPow_option_avg <- merge(x = resultsPow_option_avg, y = resultsFind_filter_options_aux, by = "location", all.x = TRUE)
+      
+      #Save results in a list
+      list_resultsPow_option_avg[[opt]] <- resultsPow_option_avg
+      
+      #Compute GeoLift for the different options
+      GeoTest <- GeoLift(Y_id = "Y",
+                         data = data_upload_file,
+                         locations = locs,
+                         treatment_start_time = start_test_date,
+                         treatment_end_time = end_test_date
+      )
+      
+      #Save results in a list
+      list_GeoTest_option[[opt]] <- GeoTest
+    }
+    
+    ############################# ENDING LOOP FOR DIFFERENT OPTIONS ##############################
+  }
+  #Provide a key name for the different objects in the lists for each option
+  list_resultsPow_option <- setNames(list_resultsPow_option, paste0("resultsPow_option", 1:options))
+  list_resultsPow_option_avg <- setNames(list_resultsPow_option_avg, paste0("resultsPow_option_avg", 1:options))
+  list_GeoTest_option <- setNames(list_GeoTest_option, paste0("GeoTest", 1:options))
+  
+  #Save dataframe containing 1- the Finder results, 2 - Power analysis results and 3 - Inference results  
+  list_results <- list("list_resultsPow_option" = list_resultsPow_option, 
+                       "list_resultsPow_option_avg" = list_resultsPow_option_avg, 
+                       "list_GeoTest_option" = list_GeoTest_option)
+  
+  print("No Errors detected")
+  
+  return(list_results)
+  
+}
+
+
 
 #' GeoLift
 #'
