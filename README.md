@@ -4,7 +4,8 @@
 **The GeoLift package has moved to [facebookincubator/GeoLift](https://github.com/facebookincubator/GeoLift). Please refer to this new location to access the most up-to-date version of the GeoLift code.**
 
 # GeoLift
-[![Project Status: Moved to https://github.com/facebookincubator/GeoLift – The project has been moved to a new location, and the version at that location should be considered authoritative.](https://www.repostatus.org/badges/latest/moved.svg)](https://www.repostatus.org/#moved) to [https://github.com/facebookincubator/GeoLift](https://github.com/facebookincubator/GeoLift) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Project Status: Moved to https://github.com/facebookincubator/GeoLift – The project has been moved to a new location, and the version at that location should be considered authoritative.](https://www.repostatus.org/badges/latest/moved.svg)](https://www.repostatus.org/#moved) to [https://github.com/facebookincubator/GeoLift](https://github.com/facebookincubator/GeoLift) 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 
 ## Overview
