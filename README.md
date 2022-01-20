@@ -1,6 +1,6 @@
 ![GeoLiftLogo](doc/GeoLift_IconText.png)
 
-## Note: 
+## Important: GeoLift has moved!
 **The GeoLift package has moved to [facebookincubator/GeoLift](https://github.com/facebookincubator/GeoLift). Please refer to this new location to access the most up-to-date version of the GeoLift code.**
 
 # GeoLift
