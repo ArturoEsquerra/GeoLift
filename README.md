@@ -1,7 +1,7 @@
 ![GeoLiftLogo](doc/GeoLift_IconText.png)
 
 # GeoLift
-[![Project Status: Moved to https://github.com/facebookincubator/GeoLift – The project has been moved to a new location, and the version at that location should be considered authoritative.](https://www.repostatus.org/badges/latest/moved.svg)](https://www.repostatus.org/#moved) to [https://github.com/facebookincubator/GeoLift](https://github.com/facebookincubator/GeoLift)[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Project Status: Moved to https://github.com/facebookincubator/GeoLift – The project has been moved to a new location, and the version at that location should be considered authoritative.](https://www.repostatus.org/badges/latest/moved.svg)](https://www.repostatus.org/#moved) to [https://github.com/facebookincubator/GeoLift](https://github.com/facebookincubator/GeoLift) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Overview
 GeoLift is an end-to-end solution to measure Lift at a Geo-level using the latest developments in Synthetic Control Methods. Through this package it is possible to do a data-driven market selection for a geo-test using a variety of Power Calculators. Moreover, GeoLift features easy-to-use inference and plotting functionalities to analyze the results of a test.
